@@ -28,6 +28,8 @@ class ofApp : public ofBaseApp{
 		SysManager* myMgr;
 		int numPorts;
 		bool initialize();
+		void setup_node(int iPort, int iNode);
+		string node_toString(int iPort, int iNode);
 		void close();
 		void checkForAlerts();
 		void clearMotionStops();
@@ -37,6 +39,8 @@ class ofApp : public ofBaseApp{
 		void enableMotors(bool val);
 		void enableMotor(bool val, int iPort, int iNode);
 
+		const int ACC_LIM_RPM_PER_SEC = 100000;
+		const int VEL_LIM_RPM = 700;
 
 		// GUI
 		void setup_gui();
@@ -47,6 +51,9 @@ class ofApp : public ofBaseApp{
 		ofParameter<string> numHubs;
 		ofParameter<bool> enableAll;
 		ofParameter<bool> eStopAll;
+		ofParameter<float> velAll;	 // <-- @TODO
+		ofParameter<float> accelAll; // <-- @TODO
+		ofParameter<bool> homeAll;   // <-- @TODO
 		//ofParameter<int> numPorts;
 		ofParameterGroup params_hub;
 		ofParameter<string> comPortNumber;
@@ -72,6 +79,13 @@ class ofApp : public ofBaseApp{
 		ofParameter<float> vel;
 		ofParameter<float> accel;
 		ofParameter<float> decel;
+		ofParameterGroup params_macros;
+		ofParameter<bool> move_trigger;
+		ofParameter<float> move_target;
+		ofParameter<bool> move_absolute_pos;
+		ofParameter<bool> move_zero;
+
+
 
 		// GUI Listeners
 		void on_enable(bool& val);
@@ -79,5 +93,8 @@ class ofApp : public ofBaseApp{
 		void on_vel_changed(float& val);
 		void on_accel_changed(float& val);
 		void on_decel_changed(float& val);
+
+		void on_move_trigger(bool& val);
+		void on_move_zero(bool& val);
 
 };

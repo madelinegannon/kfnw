@@ -11,14 +11,6 @@ void ofApp::setup() {
 		close();
 		exit();	// <-- not killing the program for some reason
 	}
-	//cout << "-------------" << endl;
-	//checkForAlerts();
-	//cout << "-------------" << endl;
-	//triggerEStops();
-	//clearMotionStops();
-	//cout << "-------------" << endl;
-	//triggerEStop(0, 1);
-	//clearMotionStop(0, 1);
 }
 
 //--------------------------------------------------------------
@@ -72,9 +64,15 @@ bool ofApp::initialize() {
 			for (size_t i = 0; i < portCount; i++) {
 				IPort& myPort = myMgr->Ports(i);
 				ofLogNotice("ofApp::initialize") << "\tSTATUS: Port " << myPort.NetNumber() << ", state=" << myPort.OpenState() << ", nodes=" << myPort.NodeCount();
+
+				// The the default vel, accel values for each node
+				for (size_t iNode = 0; iNode < myPort.NodeCount(); iNode++) {
+					setup_node(i, iNode);
+				}
+
 			}
 
-			// Update the GUI: OK because we just have one port for now
+			// @TODO: Update the GUI: OK because we just have one port for now
 			IPort& myPort = myMgr->Ports(0);
 			systemStatus.set("Connected");
 			numHubs.set(ofToString(numPorts));
@@ -101,6 +99,32 @@ bool ofApp::initialize() {
 		numHubs.set("0");
 		return false;
 	}
+}
+
+void ofApp::setup_node(int iPort, int iNode)
+{
+	IPort& myPort = myMgr->Ports(iPort);
+	INode& node = myPort.Nodes(iNode);
+	node.AccUnit(INode::RPM_PER_SEC);				// Set the units for Acceleration to RPM/SEC
+	node.VelUnit(INode::RPM);						// Set the units for Velocity to RPM
+	node.Motion.AccLimit = ACC_LIM_RPM_PER_SEC;		// Set Acceleration Limit (RPM/Sec)
+	node.Motion.VelLimit = VEL_LIM_RPM;				// Set Velocity Limit (RPM)
+}
+
+string ofApp::node_toString(int iPort, int iNode)
+{
+	IPort& myPort = myMgr->Ports(iPort);
+	INode& node = myPort.Nodes(iNode);
+	double accLim = node.Motion.AccLimit;
+	double velLim = node.Motion.VelLimit;
+	node.Motion.PosnMeasured.Refresh();
+	double pos = node.Motion.PosnMeasured.Value();
+
+	string ss = "Node {" + ofToString(iPort) + ":" + ofToString(iNode) + "}\n";
+	ss += "\t VelLimit: " + ofToString(velLim) + "\n\t AccLimit: " + ofToString(accLim) + "\n";;
+	ss += "\t CurrPos: " + ofToString(pos);
+
+	return ss;
 }
 
 /**
@@ -218,30 +242,33 @@ void ofApp::clearMotionStops()
  */
 void ofApp::clearMotionStop(int iPort, int iNode)
 {
-	if (iPort < numPorts) {
-		IPort& myPort = myMgr->Ports(iPort);
-		if (iNode < myPort.NodeCount()) {
-			INode& node = myPort.Nodes(iNode);
+	if (myMgr == nullptr) {
+		return;
+	}
+	else if (iPort < 0 || iPort >= numPorts) {
+		ofLogWarning("ofApp::clearMotionStop") << "The Port Index {" << iPort << "} is outside the NodeCount range of {" << numPorts << "}.";
+		return;
+	}
+	else if (iNode < 0 || iNode >= myMgr->Ports(iPort).NodeCount()) {
+		ofLogWarning("ofApp::clearMotionStop") << "The Node Index {" << iNode << "} is outside the NodeCount range of {" << myMgr->Ports(iPort).NodeCount() << "}.";
+		return;
+	}
 
-			// Update the registers
-			node.Status.RT.Refresh();
-			node.Status.Alerts.Refresh();
+	IPort& myPort = myMgr->Ports(iPort);
+	INode& node = myPort.Nodes(iNode);
 
-			if (node.Status.Alerts.Value().cpm.Common.EStopped) {
-				ofLogNotice("ofApp::clearMotionStop") << "(Port " << iPort << ", Node " << ofToString(node.Info.Ex.Addr()) << ") is e - stopped: Clearing E - Stop.";
-				node.Motion.NodeStopClear();
-			}
-			else {
-				ofLogNotice("ofApp::clearMotionStop") << "(Port " << iPort << ", Node " << ofToString(node.Info.Ex.Addr()) << ") is NOT E-Stopped.";
-			}
-		}
-		else {
-			ofLogWarning("ofApp::clearMotionStop") << "The Node Index {" << iNode << "} is outside the NodeCount range of {" << myPort.NodeCount() << "}.";
-		}
+	// Update the registers
+	node.Status.RT.Refresh();
+	node.Status.Alerts.Refresh();
+
+	if (node.Status.Alerts.Value().cpm.Common.EStopped) {
+		ofLogNotice("ofApp::clearMotionStop") << "(Port " << iPort << ", Node " << ofToString(node.Info.Ex.Addr()) << ") is e - stopped: Clearing E - Stop.";
+		node.Motion.NodeStopClear();
 	}
 	else {
-		ofLogWarning("ofApp::clearMotionStop") << "The Port Index {" << iPort << "} is outside the NodeCount range of {" << numPorts << "}.";
+		ofLogNotice("ofApp::clearMotionStop") << "(Port " << iPort << ", Node " << ofToString(node.Info.Ex.Addr()) << ") is NOT E-Stopped.";
 	}
+
 }
 
 /**
@@ -304,7 +331,10 @@ void ofApp::enableMotors(bool val)
 void ofApp::enableMotor(bool val, int iPort, int iNode)
 {
 	// Check that the port and node indices are within range
-	if (iPort < 0 || iPort >= numPorts) {
+	if (myMgr == nullptr) {
+		return;
+	}
+	else if (iPort < 0 || iPort >= numPorts) {
 		ofLogWarning("ofApp::enableMotor") << "The Port Index {" << iPort << "} is outside the NodeCount range of {" << numPorts << "}.";
 		return;
 	}
@@ -363,12 +393,22 @@ void ofApp::setup_gui()
 	// Node 0 Parameters
 	params_node.setName("Parameters");
 	params_motion.setName("Motion_Parameters");
-	params_motion.add(vel.set("Velocity", 0, 0, 10));
-	params_motion.add(accel.set("Acceleration", 0, 0, 10));
-	params_motion.add(accel.set("Deceleration", 0, 0, 10));
+	params_motion.add(vel.set("Velocity", 700, 0, 4000));
+	params_motion.add(accel.set("Acceleration", 100000, 0, 500000));
+	params_motion.add(decel.set("Deceleration", 0, 0, 0));
+	params_macros.setName("Macros");
+	params_macros.add(move_trigger.set("Trigger_Move", false));
+	params_macros.add(move_target.set("Move_Target", 0, -50000, 50000));
+	params_macros.add(move_absolute_pos.set("Move_Absolute", false));
+	params_macros.add(move_zero.set("Move_to_Zero", false));
+
 
 	enable.addListener(this, &ofApp::on_enable);
 	eStop.addListener(this, &ofApp::on_eStop);
+	vel.addListener(this, &ofApp::on_vel_changed);
+	accel.addListener(this, &ofApp::on_accel_changed);
+	move_trigger.addListener(this, &ofApp::on_move_trigger);
+	move_zero.addListener(this, &ofApp::on_move_zero);
 
 	panel_node.setup("Node_0");
 	panel_node.setWidthElements(gui_width);
@@ -377,6 +417,7 @@ void ofApp::setup_gui()
 	panel_node.add(enable.set("Enable", false));
 	panel_node.add(eStop.set("E_STOP", false));
 	panel_node.add(params_motion);
+	panel_node.add(params_macros);
 
 }
 
@@ -486,6 +527,65 @@ void ofApp::on_eStop(bool& val)
 	}
 }
 
+void ofApp::on_vel_changed(float& val)
+{
+	IPort& myPort = myMgr->Ports(0);
+	INode& node = myPort.Nodes(0);
+	node.Motion.VelLimit = val;
+	node_toString(0, 0);
+
+	INode& node_1 = myPort.Nodes(1);
+	node_1.Motion.VelLimit = val;
+	node_toString(0, 1);
+}
+
+void ofApp::on_accel_changed(float& val)
+{
+	IPort& myPort = myMgr->Ports(0);
+	INode& node = myPort.Nodes(0);
+	node.Motion.AccLimit = val;
+	node_toString(0, 0);
+
+	INode& node_1 = myPort.Nodes(1);
+	node_1.Motion.AccLimit = val;
+	node_toString(0, 1);
+}
+
+void ofApp::on_move_trigger(bool& val)
+{
+	if (val && !eStop.get()) {
+		IPort& myPort = myMgr->Ports(0);
+		INode& node = myPort.Nodes(0);
+
+		int resolution = 6400;
+		int revs = 10;
+
+		printf("Moving Node \t%zi \n", 0);
+		//int MOVE_DISTANCE_CNTS = resolution * revs;
+		int MOVE_DISTANCE_CNTS = move_target.get();
+		node.Motion.MovePosnStart(MOVE_DISTANCE_CNTS, move_absolute_pos.get());			//Execute 10000 encoder count move 
+
+
+		INode& node_1 = myPort.Nodes(1);
+		printf("Moving Node \t%zi \n", 1);
+		node_1.Motion.MovePosnStart(MOVE_DISTANCE_CNTS, move_absolute_pos.get());			//Execute 10000 encoder count move 
+		printf("\t%f estimated time for Node 0.\n", node.Motion.MovePosnDurationMsec(MOVE_DISTANCE_CNTS));
+		printf("\t%f estimated time for Node 1.\n", node_1.Motion.MovePosnDurationMsec(MOVE_DISTANCE_CNTS));
+
+		move_trigger.set(false);
+	}
+}
+
+void ofApp::on_move_zero(bool& val)
+{
+	if (val) {
+		move_target.set(0);
+		move_absolute_pos.set(true);
+		move_trigger.set(true);
+		move_zero.set(false);
+	}
+}
+
 
 
 //--------------------------------------------------------------
@@ -496,6 +596,9 @@ void ofApp::keyPressed(int key) {
 	case 'h':
 	case 'H':
 		showGUI.set(!showGUI);
+	case ' ':
+		cout << node_toString(0, 0) << endl;
+		cout << node_toString(0, 1) << endl;
 	default:
 		break;
 	}
