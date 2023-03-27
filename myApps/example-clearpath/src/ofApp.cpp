@@ -113,16 +113,19 @@ void ofApp::setup_node(int iPort, int iNode)
 
 string ofApp::node_toString(int iPort, int iNode)
 {
-	IPort& myPort = myMgr->Ports(iPort);
-	INode& node = myPort.Nodes(iNode);
-	double accLim = node.Motion.AccLimit;
-	double velLim = node.Motion.VelLimit;
-	node.Motion.PosnMeasured.Refresh();
-	double pos = node.Motion.PosnMeasured.Value();
+	string ss = "null ";
+	if (myMgr != nullptr) {
+		IPort& myPort = myMgr->Ports(iPort);
+		INode& node = myPort.Nodes(iNode);
+		double accLim = node.Motion.AccLimit;
+		double velLim = node.Motion.VelLimit;
+		node.Motion.PosnMeasured.Refresh();
+		double pos = node.Motion.PosnMeasured.Value();
 
-	string ss = "Node {" + ofToString(iPort) + ":" + ofToString(iNode) + "}\n";
-	ss += "\t VelLimit: " + ofToString(velLim) + "\n\t AccLimit: " + ofToString(accLim) + "\n";;
-	ss += "\t CurrPos: " + ofToString(pos);
+		ss = "Node {" + ofToString(iPort) + ":" + ofToString(iNode) + "}\n";
+		ss += "\t VelLimit: " + ofToString(velLim) + "\n\t AccLimit: " + ofToString(accLim) + "\n";;
+		ss += "\t CurrPos: " + ofToString(pos);
+	}
 
 	return ss;
 }
@@ -560,17 +563,24 @@ void ofApp::on_move_trigger(bool& val)
 		int resolution = 6400;
 		int revs = 10;
 
-		printf("Moving Node \t%zi \n", 0);
 		//int MOVE_DISTANCE_CNTS = resolution * revs;
 		int MOVE_DISTANCE_CNTS = move_target.get();
-		node.Motion.MovePosnStart(MOVE_DISTANCE_CNTS, move_absolute_pos.get());			//Execute 10000 encoder count move 
 
+		// NOTE: The program will crash if you send a move if the motor is disabled.
+		// If the motor is enabled, run the move and print the duration
+		if (enable.get()) {
+			printf("Moving Node \t%zi \n", 0);
+			node.Motion.MovePosnStart(MOVE_DISTANCE_CNTS, move_absolute_pos.get());			//Execute 10000 encoder count move 
+			printf("\t%f estimated time for Node 0.\n", node.Motion.MovePosnDurationMsec(MOVE_DISTANCE_CNTS));
+		}
 
+		// @FIXME: just copy Node 0 for right now
 		INode& node_1 = myPort.Nodes(1);
-		printf("Moving Node \t%zi \n", 1);
-		node_1.Motion.MovePosnStart(MOVE_DISTANCE_CNTS, move_absolute_pos.get());			//Execute 10000 encoder count move 
-		printf("\t%f estimated time for Node 0.\n", node.Motion.MovePosnDurationMsec(MOVE_DISTANCE_CNTS));
-		printf("\t%f estimated time for Node 1.\n", node_1.Motion.MovePosnDurationMsec(MOVE_DISTANCE_CNTS));
+		if (enable.get()) {
+			printf("Moving Node \t%zi \n", 1);
+			node_1.Motion.MovePosnStart(MOVE_DISTANCE_CNTS, move_absolute_pos.get());			//Execute 10000 encoder count move 
+			printf("\t%f estimated time for Node 1.\n", node_1.Motion.MovePosnDurationMsec(MOVE_DISTANCE_CNTS));
+		}
 
 		move_trigger.set(false);
 	}
