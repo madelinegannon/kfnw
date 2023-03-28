@@ -6,18 +6,24 @@ void ofApp::setup() {
 	ofLogToConsole();
 
 	setup_gui();
+	setup_gui_camera();
 
 	if (!initialize()) {
 		close();
 		exit();	// <-- not killing the program for some reason
 	}
 
+
+	// Add the Axis GUIs to the scene
 	int x = panel.getPosition().x;
 	int y = panel.getPosition().y + panel.getHeight() + 5;
 	for (int i = 0; i < axes.size(); i++) {
 		axes[i]->panel.setPosition(x, y);
 		y += axes[i]->panel.getHeight() + 5;
 	}
+
+	// Move the camera to a perspective angle
+	show_perspective.set(true);
 }
 
 //--------------------------------------------------------------
@@ -27,14 +33,23 @@ void ofApp::update() {
 
 //--------------------------------------------------------------
 void ofApp::draw() {
-	ofBackground(60);
+	ofBackgroundGradient(background_inner, background_outer, OF_GRADIENT_CIRCULAR);
 
-	if (showGUI) {
+	ofEnableDepthTest();
+	cam.begin();
+
+	ofDrawAxis(1500);
+
+	cam.end();
+	ofDisableDepthTest();
+
+	if (show_gui) {
 		panel.draw();
-		//panel_node.draw();
 		for (int i = 0; i < axes.size(); i++) {
 			axes[i]->panel.draw();
 		}
+		panel_camera.draw();
+		ofDrawBitmapStringHighlight("FPS: " + ofToString(ofGetFrameRate()), ofGetWidth() - 100, 10);
 	}
 }
 
@@ -75,14 +90,10 @@ bool ofApp::initialize() {
 				IPort& myPort = myMgr->Ports(i);
 				ofLogNotice("ofApp::initialize") << "\tSTATUS: Port " << myPort.NetNumber() << ", state=" << myPort.OpenState() << ", nodes=" << myPort.NodeCount();
 
-				// The the default vel, accel values for each node
+				// Setup each Node
 				for (int iNode = 0; iNode < myPort.NodeCount(); iNode++) {
-
 					axes.push_back(new Axis(*myMgr, &myPort.Nodes(iNode), i, iNode));
-
-					//setup_node(i, iNode);
 				}
-
 			}
 
 			// @TODO: Update the GUI: OK because we just have one port for now
@@ -114,35 +125,6 @@ bool ofApp::initialize() {
 	}
 }
 
-void ofApp::setup_node(int iPort, int iNode)
-{
-	IPort& myPort = myMgr->Ports(iPort);
-	INode& node = myPort.Nodes(iNode);
-	node.AccUnit(INode::RPM_PER_SEC);				// Set the units for Acceleration to RPM/SEC
-	node.VelUnit(INode::RPM);						// Set the units for Velocity to RPM
-	node.Motion.AccLimit = ACC_LIM_RPM_PER_SEC;		// Set Acceleration Limit (RPM/Sec)
-	node.Motion.VelLimit = VEL_LIM_RPM;				// Set Velocity Limit (RPM)
-}
-
-string ofApp::node_toString(int iPort, int iNode)
-{
-	string ss = "null ";
-	if (myMgr != nullptr) {
-		IPort& myPort = myMgr->Ports(iPort);
-		INode& node = myPort.Nodes(iNode);
-		double accLim = node.Motion.AccLimit;
-		double velLim = node.Motion.VelLimit;
-		node.Motion.PosnMeasured.Refresh();
-		double pos = node.Motion.PosnMeasured.Value();
-
-		ss = "Node {" + ofToString(iPort) + ":" + ofToString(iNode) + "}\n";
-		ss += "\t VelLimit: " + ofToString(velLim) + "\n\t AccLimit: " + ofToString(accLim) + "\n";;
-		ss += "\t CurrPos: " + ofToString(pos);
-	}
-
-	return ss;
-}
-
 /**
  * @brief Close all operations down and close the ports.
  *
@@ -157,219 +139,34 @@ void ofApp::close() {
 }
 
 /**
- * @brief Example of how to check for Status Alerts for nodes.
+ * @brief Create a GUI for 3D Navigation.
  *
  */
-void ofApp::checkForAlerts() {
+void ofApp::setup_gui_camera() {
 
-	for (int iPort = 0; iPort < numPorts; iPort++) {
-		// Get a reference to the port, to make accessing it easier
-		IPort& myPort = myMgr->Ports(iPort);
+	int gui_width = 250;
 
-		char alertList[256];
+	params_camera.setName("3D_Navigation");
+	params_camera.add(show_gui.set("Show_GUI", true));
+	params_camera.add(show_top.set("TOP", true));
+	params_camera.add(show_front.set("FRONT", false));
+	params_camera.add(show_side.set("SIDE", false));
+	params_camera.add(show_perspective.set("PERSP", false));
 
-		ofLogNotice("ofApp::checkForAlerts") << "Checking for Alerts:";
+	show_top.addListener(this, &ofApp::on_show_top);
+	show_front.addListener(this, &ofApp::on_show_front);
+	show_side.addListener(this, &ofApp::on_show_side);
+	show_perspective.addListener(this, &ofApp::on_show_perspective);
 
-		for (int iNode = 0; iNode < myPort.NodeCount(); iNode++) {
-			// Get a reference to the node, to make accessing it easier
-			INode& node = myPort.Nodes(iNode);
+	panel_camera.setup(params_camera);
+	panel_camera.setWidthElements(gui_width);
+	panel_camera.setPosition(ofGetWidth() - gui_width - 5, 15);
 
-			// make sure our registers are up to date
-			node.Status.RT.Refresh();
-			node.Status.Alerts.Refresh();
-
-
-			ofLogNotice("ofApp::checkForAlerts") << "\tChecking Node " << iNode << " for Alerts: ";
-
-			// Check the status register's "AlertPresent" bit
-			// The bit is set true if there are alerts in the alert register
-			if (!node.Status.RT.Value().cpm.AlertPresent) {
-				ofLogNotice("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << " has no alerts!";
-			}
-			//Check to see if the node experienced torque saturation
-			else if (node.Status.HadTorqueSaturation()) {
-				ofLogWarning("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << " has experienced torque saturation since last checking";
-			}
-			// get an alert register reference, check the alert register directly for alerts
-			else if (node.Status.Alerts.Value().isInAlert()) {
-				// get a copy of the alert register bits and a text description of all bits set
-				node.Status.Alerts.Value().StateStr(alertList, 256);
-				ofLogWarning("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << " has alerts! Alerts:\n" << alertList << "\n\n";
-
-				// Example:
-				// Access and Clear specific alerts using the method below:
-				if (node.Status.Alerts.Value().cpm.Common.EStopped) {
-					ofLogNotice("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << " is e - stopped: Clearing E - Stop";
-					node.Motion.NodeStopClear();
-				}
-				if (node.Status.Alerts.Value().cpm.TrackingShutdown) {
-					ofLogNotice("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << " exceeded Tracking error limit";
-				}
-
-				// Example:
-				// Check for more Alerts and Clear Alerts
-				node.Status.Alerts.Refresh();
-				if (node.Status.Alerts.Value().isInAlert()) {
-					node.Status.Alerts.Value().StateStr(alertList, 256);
-					ofLogNotice("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << "has non - estop alerts : \n" << alertList << "\n\n";
-					ofLogNotice("ofApp::checkForAlerts") << "\t\tClearing non-serious alerts";
-					node.Status.AlertsClear();
-
-					// Are there still alerts?
-					node.Status.Alerts.Refresh();
-					if (node.Status.Alerts.Value().isInAlert()) {
-						node.Status.Alerts.Value().StateStr(alertList, 256);
-						ofLogError("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << " has serious, non-clearing alerts:\n" << alertList << "\n\n";
-					}
-					else {
-						ofLogNotice("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << ": all alerts have been cleared";
-					}
-				}
-				else {
-					ofLogNotice("ofApp::checkForAlerts") << "\t\tNode " << ofToString(node.Info.Ex.Addr()) << ": all alerts have been cleared";
-				}
-			}
-		}
-	}
-}
-
-/**
- * @brief This function clears the MotionLock, E-Stop, Controlled, Disabled, etc. latching conditions from all nodes.
- * This allows normal operations to continue, unless the motor is shutdown state.
- *
- */
-void ofApp::clearMotionStops()
-{
-	for (int iPort = 0; iPort < numPorts; iPort++) {
-		int nodeCount = myMgr->Ports(iPort).NodeCount();
-		for (int iNode = 0; iNode < nodeCount; iNode++) {
-			clearMotionStop(iPort, iNode);
-		}
-	}
-}
-
-/**
- * @brief  This function clears the MotionLock, E-Stop, Controlled, Disabled, etc. latching conditions from a given node.
- * This allows normal operations to continue, unless the motor is shutdown state.
- *
- * @param[in] (int)  iPort: index of SC-HUB
- * @param[in] (int)  iNode: index of node on the port
- *
- */
-void ofApp::clearMotionStop(int iPort, int iNode)
-{
-	if (myMgr == nullptr) {
-		return;
-	}
-	else if (iPort < 0 || iPort >= numPorts) {
-		ofLogWarning("ofApp::clearMotionStop") << "The Port Index {" << iPort << "} is outside the NodeCount range of {" << numPorts << "}.";
-		return;
-	}
-	else if (iNode < 0 || iNode >= myMgr->Ports(iPort).NodeCount()) {
-		ofLogWarning("ofApp::clearMotionStop") << "The Node Index {" << iNode << "} is outside the NodeCount range of {" << myMgr->Ports(iPort).NodeCount() << "}.";
-		return;
-	}
-
-	IPort& myPort = myMgr->Ports(iPort);
-	INode& node = myPort.Nodes(iNode);
-
-	// Update the registers
-	node.Status.RT.Refresh();
-	node.Status.Alerts.Refresh();
-
-	if (node.Status.Alerts.Value().cpm.Common.EStopped) {
-		ofLogNotice("ofApp::clearMotionStop") << "(Port " << iPort << ", Node " << ofToString(node.Info.Ex.Addr()) << ") is e - stopped: Clearing E - Stop.";
-		node.Motion.NodeStopClear();
-	}
-	else {
-		ofLogNotice("ofApp::clearMotionStop") << "(Port " << iPort << ", Node " << ofToString(node.Info.Ex.Addr()) << ") is NOT E-Stopped.";
-	}
+	ofSetCircleResolution(60);
 
 }
 
-/**
- * @brief Stop the executing motion for all nodes.
- * Flush any pending motion commands and ramp the node's speed to zero using the E-Stop Deceleration Rate.
- *
- * WARNING: Motor Shaft will freely move on E-Stop.
- *
- * Future motion is blocked until a directed NodeStopClear is sent.
- */
-void ofApp::triggerEStops()
-{
-	for (int iPort = 0; iPort < numPorts; iPort++) {
-		int nodeCount = myMgr->Ports(iPort).NodeCount();
-		for (int iNode = 0; iNode < nodeCount; iNode++) {
-			triggerEStop(iPort, iNode);
-		}
-	}
-}
 
-/**
- * @brief Stop the executing motion for a given.
- * Flush any pending motion commands and ramp the node's speed to zero using the E-Stop Deceleration Rate.
- *
- * Future motion is blocked until a directed NodeStopClear is sent.
- *
- * WARNING: Motor Shaft will freely move on E-Stop.
- *
- * @param (int)  iPort: index of SC-HUB
- * @param (int)  iNode: index of node on the port
- */
-void ofApp::triggerEStop(int iPort, int iNode)
-{
-	if (iPort < numPorts) {
-		IPort& myPort = myMgr->Ports(iPort);
-		if (iNode < myPort.NodeCount()) {
-			INode& node = myPort.Nodes(iNode);
-			ofLogNotice("ofApp::triggerEStop") << "Triggering E-Stop at (Port " << iPort << ", Node " << ofToString(node.Info.Ex.Addr()) << ").";
-			node.Motion.NodeStop(STOP_TYPE_ESTOP_RAMP);
-		}
-		else {
-			ofLogWarning("ofApp::triggerEStop") << "The Node Index {" << iNode << "} is outside the NodeCount range of {" << myPort.NodeCount() << "}.";
-		}
-	}
-	else {
-		ofLogWarning("ofApp::triggerEStop") << "The Port Index {" << iPort << "} is outside the NodeCount range of {" << numPorts << "}.";
-	}
-}
-
-void ofApp::enableMotors(bool val)
-{
-	for (int iPort = 0; iPort < numPorts; iPort++) {
-		int nodeCount = myMgr->Ports(iPort).NodeCount();
-		for (int iNode = 0; iNode < nodeCount; iNode++) {
-			enableMotor(val, iPort, iNode);
-		}
-	}
-}
-
-void ofApp::enableMotor(bool val, int iPort, int iNode)
-{
-	// Check that the port and node indices are within range
-	if (myMgr == nullptr) {
-		return;
-	}
-	else if (iPort < 0 || iPort >= numPorts) {
-		ofLogWarning("ofApp::enableMotor") << "The Port Index {" << iPort << "} is outside the NodeCount range of {" << numPorts << "}.";
-		return;
-	}
-	else if (iNode < 0 || iNode >= myMgr->Ports(iPort).NodeCount()) {
-		ofLogWarning("ofApp::enableMotor") << "The Node Index {" << iNode << "} is outside the NodeCount range of {" << myMgr->Ports(iPort).NodeCount() << "}.";
-		return;
-	}
-
-	IPort& myPort = myMgr->Ports(iPort);
-	INode& node = myPort.Nodes(iNode);
-	if (val) {
-		node.Status.AlertsClear();			// Clear Alerts on node 
-		node.Motion.NodeStopClear();		// Clear Nodestops on Node  				
-		node.EnableReq(true);				// Enable node 
-	}
-	else {
-		node.EnableReq(false);				// Enable node 
-	}
-}
 
 /**
  * @brief Create a GUI for the System Manager.
@@ -392,34 +189,33 @@ void ofApp::setup_gui()
 	params_hub.setName("Hub_0");
 	params_hub.add(comPortNumber.set("COM_Port:", ""));
 	params_hub.add(numNodes.set("Number_of_Nodes:", ""));
-	params_hub.add(enableAll.set("Enable_All", false));
+	params_hub.add(enable_all.set("Enable_All", false));
 	params_hub.add(eStopAll.set("E_STOP_ALL", false));
 	params_motion.setName("Motion_Parameters");
-	params_motion.add(velAll.set("Velocity_ALL", 700, 0, 4000));
-	params_motion.add(accelAll.set("Acceleration_ALL", 100000, 0, 500000));
+	params_motion.add(vel_all.set("Velocity_ALL", 700, 0, 4000));
+	params_motion.add(accel_all.set("Acceleration_ALL", 100000, 0, 500000));
 	params_macros.setName("Macros");
-	params_macros.add(move_triggerAll.set("Trigger_Move", false));
-	params_macros.add(move_targetAll.set("Move_Target", 0, -50000, 50000));
-	params_macros.add(move_absolute_posAll.set("Move_Absolute", false));
-	params_macros.add(move_zeroAll.set("Move_to_Zero", false));
+	params_macros.add(move_trigger_all.set("Trigger_Move", false));
+	params_macros.add(move_target_all.set("Move_Target", 0, -50000, 50000));
+	params_macros.add(move_absolute_pos_all.set("Move_Absolute", false));
+	params_macros.add(move_zero_all.set("Move_to_Zero", false));
 
 	params_hub.add(params_motion);
 	params_hub.add(params_macros);
 
 
-	enableAll.addListener(this, &ofApp::on_enableAll);
-	eStopAll.addListener(this, &ofApp::on_eStopAll);
-	velAll.addListener(this, &ofApp::on_velAll);
-	accelAll.addListener(this, &ofApp::on_accelAll);
-	move_triggerAll.addListener(this, &ofApp::on_move_triggerAll);
-	move_targetAll.addListener(this, &ofApp::on_move_targetAll);
-	move_absolute_posAll.addListener(this, &ofApp::on_move_absolute_posAll);
-	move_zeroAll.addListener(this, &ofApp::on_move_zeroAll);
+	enable_all.addListener(this, &ofApp::on_enable_all);
+	eStopAll.addListener(this, &ofApp::on_eStop_all);
+	vel_all.addListener(this, &ofApp::on_vel_all);
+	accel_all.addListener(this, &ofApp::on_accel_all);
+	move_trigger_all.addListener(this, &ofApp::on_move_trigger_all);
+	move_target_all.addListener(this, &ofApp::on_move_target_all);
+	move_absolute_pos_all.addListener(this, &ofApp::on_move_absolute_pos_all);
+	move_zero_all.addListener(this, &ofApp::on_move_zero_all);
 
 	panel.setup("Clearpath_Controller");
 	panel.setWidthElements(gui_width);
 	panel.setPosition(15, 15);
-	panel.add(showGUI.set("Show_GUI", true));
 	panel.add(params_system);
 	panel.add(params_hub);
 
@@ -430,7 +226,7 @@ void ofApp::setup_gui()
  *
  * @param (bool)  val
  */
-void ofApp::on_enableAll(bool& val)
+void ofApp::on_enable_all(bool& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		if (val) {
@@ -450,13 +246,13 @@ void ofApp::on_enableAll(bool& val)
  *
  * @param (bool)  val
  */
-void ofApp::on_eStopAll(bool& val)
+void ofApp::on_eStop_all(bool& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		if (val) {
-			// disable & uncheck enableAll in the GUI
-			if (enableAll)
-				enableAll.set(false); 
+			// disable & uncheck enable_all in the GUI
+			if (enable_all)
+				enable_all.set(false); 
 			panel.setBorderColor(mode_color_eStop);
 		}
 		else {
@@ -468,45 +264,143 @@ void ofApp::on_eStopAll(bool& val)
 	}
 }
 
-void ofApp::on_velAll(float& val)
+void ofApp::on_vel_all(float& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		axes[i]->vel = val;
 	}
 }
 
-void ofApp::on_accelAll(float& val)
+void ofApp::on_accel_all(float& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		axes[i]->accel = val;
 	}
 }
 
-void ofApp::on_move_triggerAll(bool& val)
+void ofApp::on_move_trigger_all(bool& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		axes[i]->move_trigger = val;
 	}
+	move_trigger_all.set(false);
 }
 
-void ofApp::on_move_absolute_posAll(bool& val)
+void ofApp::on_move_absolute_pos_all(bool& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		axes[i]->move_absolute_pos = val;
 	}
 }
 
-void ofApp::on_move_targetAll(float& val)
+void ofApp::on_move_target_all(float& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		axes[i]->move_target = val;
 	}
 }
 
-void ofApp::on_move_zeroAll(bool& val)
+void ofApp::on_move_zero_all(bool& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
 		axes[i]->move_zero = val;
+	}
+	move_zero_all.set(false);
+}
+
+//--------------------------------------------------------------
+void ofApp::setup_camera() {
+	cam.setFarClip(9999999);
+	cam.setDistance(5000);
+	ofNode tgt;
+	tgt.setGlobalPosition(0, 400, 1000);
+	tgt.setGlobalOrientation(ofQuaternion(0, 0, 0, 1));
+	cam.setTarget(tgt);
+	cam.lookAt(ofVec3f(0, 0, -1), ofVec3f(1, 0, 0));
+}
+
+
+//--------------------------------------------------------------
+void ofApp::on_show_top(bool& val)
+{
+	if (val) {
+
+		int x = 0;
+		int y = 400;
+		int z = 3000;
+
+		ofVec3f pos = ofVec3f(x, y, z);
+		ofVec3f tgt = ofVec3f(pos.x, pos.y, 0);
+		cam.setGlobalPosition(pos);
+		cam.setTarget(tgt);
+		cam.lookAt(tgt, ofVec3f(1, 0, 0));
+
+		show_front = false;
+		show_side = false;
+		show_perspective = false;
+	}
+}
+
+//--------------------------------------------------------------
+void ofApp::on_show_front(bool& val)
+{
+	if (val) {
+
+		int x = 3000;
+		int y = 400;
+		int z = 600;
+
+		ofVec3f pos = ofVec3f(x, y, z);
+		ofVec3f tgt = ofVec3f(0, pos.y, pos.z);
+		cam.setGlobalPosition(pos);
+		cam.setTarget(tgt);
+		cam.lookAt(tgt, ofVec3f(0, 0, 1));
+
+		show_top = false;
+		show_side = false;
+		show_perspective = false;
+	}
+}
+
+//--------------------------------------------------------------
+void ofApp::on_show_side(bool& val)
+{
+	if (val) {
+
+		int x = 900;
+		int y = -2000;
+		int z = 600;
+
+		ofVec3f pos = ofVec3f(x, y, z);
+		ofVec3f tgt = ofVec3f(pos.x, 0, pos.z);
+		cam.setGlobalPosition(pos);
+		cam.setTarget(tgt);
+		cam.lookAt(tgt, ofVec3f(0, 0, 1));
+
+		show_top = false;
+		show_front = false;
+		show_perspective = false;
+	}
+}
+
+void ofApp::on_show_perspective(bool& val)
+{
+	if (val) {
+
+		int x = 4000;
+		int y = -2000;
+		int z = 2000;
+
+		ofVec3f pos = ofVec3f(x, y, z);
+		ofVec3f tgt = ofVec3f(0, 400, 0);
+		cam.setGlobalPosition(pos);
+		cam.setTarget(tgt);
+		cam.lookAt(tgt, ofVec3f(0, 0, 1));
+		cam.setGlobalPosition(pos);
+
+		show_top = false;
+		show_front = false;
+		show_side = false;
 	}
 }
 
@@ -515,12 +409,32 @@ void ofApp::keyPressed(int key) {
 
 	switch (key)
 	{
+	case 'f':
+	case 'F':
+		ofToggleFullscreen();
+		panel_camera.setPosition(ofGetWidth() - 250 - 10, 15);
+		break;
 	case 'h':
 	case 'H':
-		showGUI.set(!showGUI);
+		show_gui.set(!show_gui);
+		break;
 	case ' ':
-		cout << node_toString(0, 0) << endl;
-		cout << node_toString(0, 1) << endl;
+		for (int i = 0; i < axes.size(); i++) {
+			axes[i]->PrintStats();
+		}
+		break;
+	case '1': 
+		show_top.set(true);
+		break;
+	case '2': 
+		show_front.set(true);
+		break;
+	case '3': 
+		show_side.set(true);
+		break;
+	case '4': 
+		show_perspective.set(true);
+		break;
 	default:
 		break;
 	}

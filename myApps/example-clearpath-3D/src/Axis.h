@@ -85,24 +85,16 @@ private:
 	// Initialize accLim, velLim, etc
 	void InitMotionParams();
 
-	// Edit the current motion parameters
-	void ChangeMotionParams(double newVelLimit,
-		double newAccelLimit,
-		uint32_t newJrkLimit,
-		uint32_t newTrackingLimit,
-		int32_t newTrqGlobal);
-
 	// Initiate a move
 	void PosnMove(int32_t targetPosn,
 		bool isAbsolute = false,
 		bool addDwell = false);
-	void VelMove(double targetVel);
+
+	void VelMove(double targetVel, uint32_t duration=500);
 
 	// Wait for attention that move has completed
 	bool WaitForMove(::int32_t timeoutMs, bool secondCall = false);
 
-	// Alert handlers
-	void CheckForAlerts();
 
 	// HW Brake Setup
 	void SetBrakeControl(size_t brakeNum, BrakeControls brakeMode);
@@ -118,9 +110,12 @@ public:
 
 	// The state machine
 	void AxisMain();
+	
+	// Alert handlers
+	void CheckForAlerts();
 
 	// Return a reference to our node
-	INode* MyNode() {
+	INode* Get() {
 		return(m_node);
 	};
 

@@ -30,58 +30,80 @@ class ofApp : public ofBaseApp{
 		vector<Axis*> axes;
 		int numPorts;
 		bool initialize();
-		void setup_node(int iPort, int iNode);
-		string node_toString(int iPort, int iNode);
+		//void setup_node(int iPort, int iNode);
+		//string node_toString(int iPort, int iNode);
 		void close();
-		void checkForAlerts();
-		void clearMotionStops();
-		void clearMotionStop(int iPort, int iNode);
-		void triggerEStops();
-		void triggerEStop(int iPort, int iNode);
-		void enableMotors(bool val);
-		void enableMotor(bool val, int iPort, int iNode);
+		//void checkForAlerts();
+		//void clearMotionStops();
+		//void clearMotionStop(int iPort, int iNode);
+		//void triggerEStops();
+		//void triggerEStop(int iPort, int iNode);
+		//void enableMotors(bool val);
+		//void enableMotor(bool val, int iPort, int iNode);
 
-		const int ACC_LIM_RPM_PER_SEC = 100000;
-		const int VEL_LIM_RPM = 700;
+		//const int ACC_LIM_RPM_PER_SEC = 100000;
+		//const int VEL_LIM_RPM = 700;
 
 		// GUI
 		void setup_gui();
 		ofxPanel panel;
-		ofParameter<bool> showGUI;
 		ofParameterGroup params_system;
 		ofParameter<string> systemStatus;
 		ofParameter<string> numHubs;
 		//ofParameter<int> numPorts;
+
 		ofParameterGroup params_hub;
-		ofParameter<bool> enableAll;
-		ofParameter<bool> eStopAll;
-		ofParameterGroup params_motion;
-		ofParameter<float> velAll;	
-		ofParameter<float> accelAll; 
-		ofParameterGroup params_macros;
-		ofParameter<bool> move_triggerAll;
-		ofParameter<float> move_targetAll;
-		ofParameter<bool> move_absolute_posAll;
-		ofParameter<bool> move_zeroAll;
-		ofParameter<bool> homeAll;   // <-- @TODO
 		ofParameter<string> comPortNumber;
 		ofParameter<string> numNodes;
+		ofParameter<bool> enable_all;
+		ofParameter<bool> eStopAll;
+
+		ofParameterGroup params_motion;
+		ofParameter<float> vel_all;	
+		ofParameter<float> accel_all; 
+
+		ofParameterGroup params_macros;
+		ofParameter<bool> move_trigger_all;
+		ofParameter<float> move_target_all;
+		ofParameter<bool> move_absolute_pos_all;
+		ofParameter<bool> move_zero_all;
+		ofParameter<bool> home_all;   // <-- @TODO
 
 		
 		// GUI Listeners
-		void on_enableAll(bool& val);
-		void on_eStopAll(bool& val);
-		void on_velAll(float& val);
-		void on_accelAll(float& val);
+		void on_enable_all(bool& val);
+		void on_eStop_all(bool& val);
+		void on_vel_all(float& val);
+		void on_accel_all(float& val);
 
-		void on_move_triggerAll(bool& val);
-		void on_move_zeroAll(bool& val);
-		void on_move_absolute_posAll(bool& val);
-		void on_move_targetAll(float& val);
+		void on_move_trigger_all(bool& val);
+		void on_move_absolute_pos_all(bool& val);
+		void on_move_target_all(float& val);
+		void on_move_zero_all(bool& val);
 
 		ofColor mode_color_disabled;
 		ofColor mode_color_eStop;
 		ofColor mode_color_normal;
 
+
+		// 3D Environment
+
+		ofEasyCam cam;
+		void setup_camera();
+		void setup_gui_camera();
+		bool isFullScreen = false;
+
+		ofxPanel panel_camera;
+		ofParameterGroup params_camera;
+		ofParameter<bool> showGUI;
+		ofParameter<bool> show_gui, show_top, show_front, show_side, show_perspective;
+		void on_show_top(bool& val);
+		void on_show_front(bool& val);
+		void on_show_side(bool& val);
+		void on_show_perspective(bool& val);
+
+
+		ofColor background_inner = ofColor(238);
+		ofColor background_outer = ofColor(118);
 
 };
