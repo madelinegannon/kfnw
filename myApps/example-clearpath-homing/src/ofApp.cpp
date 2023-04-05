@@ -256,7 +256,7 @@ void ofApp::on_move_absolute_pos_all(bool& val)
 void ofApp::on_move_target_all(float& val)
 {
 	for (int i = 0; i < axes.size(); i++) {
-		axes[i]->move_target = val;
+		axes[i]->move_target_cnts = val;
 	}
 }
 

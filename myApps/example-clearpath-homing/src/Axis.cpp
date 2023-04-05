@@ -21,6 +21,14 @@ Axis::Axis(SysManager& SysMgr, INode* node, int iPort, int iNode) :
 	m_quitting(false),
 	m_sysMgr(SysMgr) {
 
+	if (ofGetLogLevel() == OF_LOG_NOTICE) {
+		printf("   Node[%d]: type=%d\n", iNode, m_node->Info.NodeType());
+		printf("            userID: %s\n", m_node->Info.UserID.Value());
+		printf("        FW version: %s\n", m_node->Info.FirmwareVersion.Value());
+		printf("          Serial #: %d\n", m_node->Info.SerialNumber.Value());
+		printf("             Model: %s\n\n", m_node->Info.Model.Value());
+	}
+
 	/*
 		// OPTIONAL - Save the config file before starting
 		// This would typically be performed right after tuning each axis.
@@ -48,13 +56,6 @@ Axis::Axis(SysManager& SysMgr, INode* node, int iPort, int iNode) :
 	setup_gui();
 	InitMotionParams();
 
-	if (ofGetLogLevel() == OF_LOG_NOTICE) {
-		printf("   Node[%d]: type=%d\n", iNode, m_node->Info.NodeType());
-		printf("            userID: %s\n", m_node->Info.UserID.Value());
-		printf("        FW version: %s\n", m_node->Info.FirmwareVersion.Value());
-		printf("          Serial #: %d\n", m_node->Info.SerialNumber.Value());
-		printf("             Model: %s\n", m_node->Info.Model.Value());
-	}
 };
 
 /**
@@ -93,7 +94,41 @@ void Axis::update() {
 	if (m_node != NULL) {
 		auto curr_position = GetPosition();
 		position_cnts.set(ofToString(curr_position));
+		position_mm.set(ofToString(count_to_mm(curr_position)));
+		auto val = mm_to_count(count_to_mm(curr_position));
+		if (val != 0)
+			cout << "checking mm_to_count: " << ofToString(val) << endl;
 	}
+}
+
+/**
+ * @brief Converts from motor position (count) to linear distance (mm).
+ *
+ * @param (int)  val: motor position (in step counts)
+ * @param (float)  diameter: diameter of cable drum
+ * @return (float)  linear distance (in mm)
+ */
+float Axis::count_to_mm(int val, float diameter)
+{
+	float step_resolution = 6400.0;
+	float circumference = PI * diameter;
+	float mm_per_step = circumference / step_resolution;	// 0.01963495408 @diameter = 40
+	return val * mm_per_step;
+}
+
+/**
+ * @brief Converts from linear distance (mm) to motor position.
+ *
+ * @param (int)  val:  linear distance (in mm)
+ * @param (float)  diameter: diameter of cable drum
+ * @return (float) motor position (in step counts)
+ */
+int Axis::mm_to_count(float val, float diameter)
+{
+	float step_resolution = 6400.0;
+	float circumference = PI * diameter;
+	float mm_per_step = circumference / step_resolution;	// 0.01963495408 @diameter = 40
+	return val / mm_per_step;
 }
 
 /**
@@ -323,6 +358,11 @@ void Axis::CheckMotorStatus()
 
 }
 
+/**
+ * @brief Checks whether or not Homing parameters have been set up in ClearView for a motor.
+ * Updates the GUI with a "HOMED" or "NOT HOMED" status.
+ * 
+ */
 void Axis::CheckHomingStatus()
 {
 	if (m_node != NULL) {
@@ -332,6 +372,7 @@ void Axis::CheckHomingStatus()
 			{
 				auto curr_position = m_node->Motion.PosnMeasured.Value();
 				position_cnts.set(ofToString(curr_position));
+				position_mm.set(ofToString(count_to_mm(curr_position)));
 				ofLogNotice("Axis::CheckHomingStatus") << "Node " << this->iNode << " is already homed. Current Pos: " << curr_position << endl;
 				homing_status.set("HOMED");
 			}
@@ -488,8 +529,9 @@ void Axis::setup_gui()
 
 	params_macros.setName("Macros");
 	params_macros.add(move_trigger.set("Trigger_Move", false));
-	params_macros.add(move_target.set("Move_Target", 0, -64000, 64000));
-	params_macros.add(move_absolute_pos.set("Move_Absolute", false));
+	params_macros.add(move_target_cnts.set("Move_Target(cnts)", 0, -64000, 64000));
+	params_macros.add(move_target_mm.set("Move_Target(mm)", 0, 0, 1900));		// 3770mm is theoretical spool capacity @diameter = 40mm
+	params_macros.add(move_absolute_pos.set("Move_Absolute", true));
 	params_macros.add(move_zero.set("Move_to_Zero", false));
 
 
@@ -500,10 +542,12 @@ void Axis::setup_gui()
 	enable.setName("Enable");
 	eStop.setName("E_STOP");
 	position_cnts.setName("Position(cnts)");
-	CheckMotorStatus();		// updates enable, eStop, homing, position_cnts
+	position_mm.setName("Position(mm)*");
+	CheckMotorStatus();		// updates enable, eStop, homing, position_cnts, position_mm
 	panel.add(enable);
 	panel.add(eStop);
 	panel.add(position_cnts);
+	panel.add(position_mm);
 	panel.add(params_homing);
 	panel.add(params_motion);
 	panel.add(params_macros);
@@ -517,6 +561,7 @@ void Axis::setup_gui()
 	move_zero.addListener(this, &Axis::on_move_zero);
 
 	reset_home_position.addListener(this, &Axis::on_reset_home_position);
+	move_target_mm.addListener(this, &Axis::on_move_target_mm);
 }
 
 
@@ -583,21 +628,26 @@ void Axis::on_rehome(bool& val)
 	// @TODO
 }
 
+/**
+ * @brief Uses the current motor position as the new HOME position (posn=0).
+ * 
+ * @param (bool)  val: 
+ */
 void Axis::on_reset_home_position(bool& val)
 {
 	if (m_node != NULL) {
 		if (val) {
 			// Refresh our current measured position
-			m_node->Motion.PosnMeasured.Refresh();		
+			m_node->Motion.PosnMeasured.Refresh();
 			auto curr_pos = m_node->Motion.PosnMeasured.Value();
 
-			ofLogNotice("Axis::on_reset_home_position") << "Resetting Home Position for Node " << iNode << ". Adjusting by " << ofToString(-1*curr_pos) << " counts.";
+			ofLogNotice("Axis::on_reset_home_position") << "Resetting Home Position for Node " << iNode << ". Adjusting by " << ofToString(-1 * curr_pos) << " counts.";
 
 			// Now the node is no longer considered "homed", and soft limits are turned off
-			m_node->Motion.AddToPosition(-1 * curr_pos);			
+			m_node->Motion.AddToPosition(-1 * curr_pos);
 
 			// Reset the Node's "sense of home" soft limits (unchanged) are now active again
-			m_node->Motion.Homing.SignalComplete();		
+			m_node->Motion.Homing.SignalComplete();
 
 			// Refresh our current measured position
 			m_node->Motion.PosnMeasured.Refresh();
@@ -642,8 +692,8 @@ void Axis::on_move_trigger(bool& val)
 	if (val && !eStop.get()) {
 
 		//int MOVE_DISTANCE_CNTS = resolution * revs;
-		auto MOVE_DISTANCE_CNTS = move_target.get();
-		cout << "Axis::on_move_trigger: move_target val" << MOVE_DISTANCE_CNTS << endl;
+		auto MOVE_DISTANCE_CNTS = move_target_cnts.get();
+		cout << "Axis::on_move_trigger: move_target_cnts val" << MOVE_DISTANCE_CNTS << endl;
 
 		// NOTE: The program will crash if you send a move if the motor is disabled.
 		// If the motor is enabled, run the move and print the duration
@@ -668,9 +718,19 @@ void Axis::on_move_trigger(bool& val)
 void Axis::on_move_zero(bool& val)
 {
 	if (val) {
-		move_target.set(0);
+		move_target_mm.set(0);
 		move_absolute_pos.set(true);
 		move_trigger.set(true);
 		move_zero.set(false);
 	}
+}
+
+/**
+ * @brief Callback to convert mm to motor counts.
+ * 
+ * @param ()  val: linear distance (in mm)
+ */
+void Axis::on_move_target_mm(float& val)
+{
+	move_target_cnts.set(mm_to_count(val));
 }

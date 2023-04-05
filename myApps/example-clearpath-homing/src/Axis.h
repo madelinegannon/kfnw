@@ -1,7 +1,7 @@
 /*****************************************************************//**
  * @file   Axis.h
- * @brief  
- * 
+ * @brief
+ *
  * @author mad
  * @date   March 2023
  *********************************************************************/
@@ -18,7 +18,7 @@
 #include "ofMain.h"
 #include "ofxGui.h"
 
-// Use the Teknic library's namespace
+ // Use the Teknic library's namespace
 using namespace sFnd;
 
 
@@ -27,10 +27,10 @@ using namespace sFnd;
  */
 class Axis {
 private:
-	INode *m_node;				// The ClearPath-SC for this axis
+	INode* m_node;				// The ClearPath-SC for this axis
 	SysManager& m_sysMgr;
 
-// Filename for the stored config file
+	// Filename for the stored config file
 #define MAX_CONFIG_PATH_LENGTH 256
 #define MAX_CONFIG_FILENAME_LENGTH 384
 	char m_configFile[MAX_CONFIG_FILENAME_LENGTH];
@@ -66,7 +66,7 @@ private:
 		bool isAbsolute = false,
 		bool addDwell = false);
 
-	void VelMove(double targetVel, uint32_t duration=500);
+	void VelMove(double targetVel, uint32_t duration = 500);
 
 	// Wait for attention that move has completed
 	bool WaitForMove(::int32_t timeoutMs, bool secondCall = false);
@@ -78,47 +78,13 @@ private:
 
 public:
 	// Constructor/Destructor
-	Axis(SysManager& SysMgr, INode *node, int iPort=0, int iNode=0);
+	Axis(SysManager& SysMgr, INode* node, int iPort = 0, int iNode = 0);
 	~Axis();
-
-	void setup();
-	void update();
-	void draw();
-
-	int iPort;
-	int iNode;
-
-	void InitHomingRoutine();
-
-	// Check Motor Statuses
-	void CheckMotorStatus();
-	void CheckHomingStatus();
-
-	
-	// Alert handlers
-	void CheckForAlerts();
 
 	// Return a reference to our node
 	INode* Get() {
 		return(m_node);
 	};
-
-	// Print the current stats (number of moves performed and
-	// current commanded position)
-	void PrintStats(bool onInit = false) {
-		// Refresh the measures position register
-		m_node->Motion.PosnCommanded.Refresh();
-		if (onInit) {
-			printf("  [%2d]:\t\t**at startup**\t\t%jd\n",
-				m_node->Info.Ex.Addr(),
-				(intmax_t) GetPosition());
-		}
-		else {
-			printf("  [%2d]:\t\t%8d\t\t%jd\n",
-				m_node->Info.Ex.Addr(), m_moveCount,
-				(intmax_t) GetPosition());
-		}
-	}
 
 	// Return scaled position
 	int64_t GetPosition(bool includeWraps = true);
@@ -141,6 +107,26 @@ public:
 		m_quitting = true;
 	}
 
+
+	void setup();
+	void update();
+	void draw();
+
+	float count_to_mm(int val, float diameter = 40);
+	int mm_to_count(float val, float diameter = 40);
+
+	int iPort;
+	int iNode;
+
+	void InitHomingRoutine();
+
+	// Check Motor Statuses
+	void CheckMotorStatus();
+	void CheckHomingStatus();
+
+	// Alert handlers
+	void CheckForAlerts();
+
 	void clearMotionStops();
 	void triggerEStop();
 
@@ -158,6 +144,7 @@ public:
 	ofParameter<bool> enable;
 	ofParameter<bool> eStop;
 	ofParameter<string> position_cnts;
+	ofParameter<string> position_mm;
 
 	ofParameterGroup params_homing;
 	ofParameter<string> homing_status;
@@ -168,10 +155,11 @@ public:
 	ofParameter<float> vel;
 	ofParameter<float> accel;
 	ofParameter<float> decel;
-	
+
 	ofParameterGroup params_macros;
 	ofParameter<bool> move_trigger;
-	ofParameter<int> move_target;
+	ofParameter<int> move_target_cnts;
+	ofParameter<float> move_target_mm;
 	ofParameter<bool> move_absolute_pos;
 	ofParameter<bool> move_zero;
 
@@ -186,6 +174,27 @@ public:
 
 	void on_move_trigger(bool& val);
 	void on_move_zero(bool& val);
+
+	void on_move_target_mm(float& val);
+
+
+
+	// Print the current stats (number of moves performed and
+	// current commanded position)
+	void PrintStats(bool onInit = false) {
+		// Refresh the measures position register
+		m_node->Motion.PosnCommanded.Refresh();
+		if (onInit) {
+			printf("  [%2d]:\t\t**at startup**\t\t%jd\n",
+				m_node->Info.Ex.Addr(),
+				(intmax_t)GetPosition());
+		}
+		else {
+			printf("  [%2d]:\t\t%8d\t\t%jd\n",
+				m_node->Info.Ex.Addr(), m_moveCount,
+				(intmax_t)GetPosition());
+		}
+	}
 
 };
 
