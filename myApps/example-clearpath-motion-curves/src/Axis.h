@@ -17,6 +17,7 @@
 
 #include "ofMain.h"
 #include "ofxGui.h"
+#include "PID.h"
 
  // Use the Teknic library's namespace
 using namespace sFnd;
@@ -64,10 +65,9 @@ private:
 
 	void VelMove(double targetVel, uint32_t duration = 500);
 
-
-
 	// HW Brake Setup
 	void SetBrakeControl(size_t brakeNum, BrakeControls brakeMode);
+
 
 
 public:
@@ -79,6 +79,11 @@ public:
 	INode* Get() {
 		return(m_node);
 	};
+
+	PID pid;
+	void setup_pid();
+
+
 
 	// Wait for attention that move has completed
 	bool WaitForMove(::int32_t timeoutMs, bool secondCall = false);
@@ -161,6 +166,21 @@ public:
 	ofParameter<float> accel;
 	ofParameter<float> decel;
 
+
+	//float kp = 1.0;
+	//float ki = 0.005;
+	//float kd = 0.005;
+	//float time_sampling = (1 / 60.);
+	//float cuttoff;
+	//float max_output;
+	ofParameterGroup params_pid;
+	ofParameter<float> kp;
+	ofParameter<float> ki;
+	ofParameter<float> kd;
+	ofParameter<float> time_sampling;
+	ofParameter<float> cuttoff;
+	ofParameter<float> max_output;
+
 	ofParameterGroup params_macros;
 	ofParameter<bool> move_trigger;
 	ofParameter<int> move_target_cnts;
@@ -181,6 +201,13 @@ public:
 	void on_move_zero(bool& val);
 
 	void on_move_target_mm(float& val);
+
+
+	void on_kp(float& val);
+	void on_ki(float& val);
+	void on_kd(float& val);
+	void on_cutoff(float& val);
+	void on_max_output(float& val);
 
 
 

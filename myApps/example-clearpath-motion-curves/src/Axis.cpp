@@ -55,7 +55,7 @@ Axis::Axis(SysManager& SysMgr, INode* node, int iPort, int iNode) :
 	//CheckMotorStatus();	// <-- called inside setup_gui() now
 	setup_gui();
 	InitMotionParams();
-
+	setup_pid();
 };
 
 /**
@@ -106,7 +106,7 @@ void Axis::update() {
  */
 float Axis::count_to_mm(int val, float diameter)
 {
-	float step_resolution = 6400.0;
+	float step_resolution = m_node->Info.PositioningResolution.Value();
 	float circumference = PI * diameter;
 	float mm_per_step = circumference / step_resolution;	// 0.01963495408 @diameter = 40
 	return val * mm_per_step;
@@ -121,7 +121,7 @@ float Axis::count_to_mm(int val, float diameter)
  */
 int Axis::mm_to_count(float val, float diameter)
 {
-	float step_resolution = 6400.0;
+	float step_resolution = m_node->Info.PositioningResolution.Value();
 	float circumference = PI * diameter;
 	float mm_per_step = circumference / step_resolution;	// 0.01963495408 @diameter = 40
 	return val / mm_per_step;
@@ -284,6 +284,7 @@ void Axis::VelMove(double targetVel, uint32_t duration) {
 	// Configure the timeout for the node stop to settle
 	m_moveTimeoutMs = 100;
 }
+
 
 /**
  * @brief Wait for attention that move has completed.
@@ -504,6 +505,15 @@ void Axis::SetPosition(int32_t targetPosn, bool isAbsolute, bool addDwell)
 }
 
 /**
+ * @brief Create a PID controller to regulate the position trajectory.
+ * 
+ */
+void Axis::setup_pid()
+{
+	pid = PID(kp, ki, kd, (1 / 60.));
+}
+
+/**
  * @brief Create a GUI for the Axis.
  *
  */
@@ -524,6 +534,14 @@ void Axis::setup_gui()
 	params_motion.setName("Motion_Parameters");
 	params_motion.add(vel.set("Velocity", 300, 0, 600));
 	params_motion.add(accel.set("Acceleration", 2000, 0, 4000));
+
+	params_pid.setName("PID_Parameters");
+	params_pid.add(kp.set("Kp", 1.0, 0.1, 10.0));
+	params_pid.add(ki.set("Ki", 0.005, 0.001, 1.0));
+	params_pid.add(kd.set("Kd", 0.005, 0.001, 3.0));
+	time_sampling.set("Ts", (1 / 60.), 0.001, 1.0);
+	params_pid.add(cuttoff.set("Cutoff", 0, 0, 1.0));
+	params_pid.add(max_output.set("Max_Ouput", 300, 0, 300));
 
 	params_macros.setName("Macros");
 	params_macros.add(move_trigger.set("Trigger_Move", false));
@@ -549,6 +567,7 @@ void Axis::setup_gui()
 	panel.add(position_world.set("World_Position", ofVec3f((this->iNode * 800 + 800), 768/2, 0), ofVec3f(0, 0, 0), ofVec3f(2000, 2000, 2000)));
 	panel.add(params_homing);
 	panel.add(params_motion);
+	panel.add(params_pid);
 	panel.add(params_macros);
 
 	enable.addListener(this, &Axis::on_enable);
@@ -561,6 +580,12 @@ void Axis::setup_gui()
 
 	reset_home_position.addListener(this, &Axis::on_reset_home_position);
 	move_target_mm.addListener(this, &Axis::on_move_target_mm);
+
+	kp.addListener(this, &Axis::on_kp);
+	ki.addListener(this, &Axis::on_ki);
+	kd.addListener(this, &Axis::on_kd);
+	max_output.addListener(this, &Axis::on_max_output);
+
 }
 
 
@@ -733,4 +758,24 @@ void Axis::on_move_zero(bool& val)
 void Axis::on_move_target_mm(float& val)
 {
 	move_target_cnts.set(mm_to_count(val));
+}
+
+void Axis::on_kp(float& val)
+{
+	pid.setKp(val);
+}
+
+void Axis::on_ki(float& val)
+{
+	pid.setKi(val);
+}
+
+void Axis::on_kd(float& val)
+{
+	pid.setKd(val);
+}
+
+void Axis::on_max_output(float& val)
+{
+	pid.setMaxOutput(val);
 }

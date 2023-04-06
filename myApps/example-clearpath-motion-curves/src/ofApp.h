@@ -33,13 +33,20 @@ public:
 	void update_sine_curve();
 
 	SysManager* myMgr;
-	vector<Axis*> axes;
 	int numPorts;
 	bool initialize();
 	void close();
 
-	//const int ACC_LIM_RPM_PER_SEC = 100000;
-	//const int VEL_LIM_RPM = 700;
+	vector<Axis*> axes;
+	glm::vec3 origin;
+	glm::vec3 desired_pos;
+	glm::vec3 actual_pos;
+	float actual_dist_mm;
+	float desired_dist_mm;
+	float desired_vel;
+	float pid_vel = 0;
+
+
 
 	// GUI
 	void setup_gui();

@@ -32,56 +32,55 @@ void ofApp::setup() {
 //--------------------------------------------------------------
 void ofApp::update() {
 	for (int i = 0; i < axes.size(); i++) {
+		origin = toGlm(axes[i]->position_world.get());
+
+		actual_dist_mm = axes[i]->count_to_mm(axes[i]->GetPosition());
+		actual_pos = glm::vec3(origin.x, origin.y + actual_dist_mm, 0);
+
+		desired_pos = get_projected_point(curve, origin.x);
+		desired_dist_mm = glm::distance(origin, desired_pos);
+
+		// Calculate the desired velocity
+		// Get velocity to DESIRED position		
+		auto actual_to_desired_dist = glm::distance(actual_pos, desired_pos);
+		float pid_actual_to_desired_dist = axes[i]->pid.update(actual_to_desired_dist);
+		float dt = vel_time_step.get();
+		desired_vel = actual_to_desired_dist / dt;
+		desired_vel = pid_actual_to_desired_dist / dt;
+		// clamp the velocity in case the distance jumps
+		if (desired_vel > vel_max.get())
+			cout << "CLAMPING VELOCITY " << ofToString(desired_vel) << endl;
+		desired_vel = min(desired_vel, vel_max.get());
+		if (desired_pos.y - actual_pos.y > 0)
+			desired_vel *= -1;
+
+		//pid_vel = axes[i]->pid.update(desired_vel) * -1;
+		//auto pid_vel_clamp = min(abs(pid_vel), vel_max.get());
+		//pid_vel = (pid_vel < 0 ? pid_vel_clamp * -1 : pid_vel_clamp);
+
 
 		// move the motor based on the sine curve
 		if (use_sine_curve && play) {
-			auto curr_pos_cnt = axes[i]->GetPosition();
-			auto origin = axes[i]->position_world.get();
-			auto projected = get_projected_point(curve, origin.x);
-			auto dist = glm::distance(toGlm(origin), projected);
-			axes[i]->move_target_mm.set(dist);
-			//axes[i]->PosnMove(axes[i]->mm_to_count(dist), true);
-			//axes[i]->WaitForMove(1000);
+			// Update the gui with the origin_to_desired distance
+			axes[i]->move_target_mm.set(desired_dist_mm);
+
 			// add a movement command if there's space in the buffer
-			auto pos_cnt = axes[i]->mm_to_count(dist);
 			axes[i]->Get()->Status.RT.Refresh();
 			if (axes[i]->Get()->Status.RT.Value().cpm.MoveBufAvail) {
-				// calculate velocity between current and desired position
-				// assume time is 1/60.0 for now
-
-				auto origin = toGlm(axes[i]->position_world.get());
-				auto projected = get_projected_point(curve, origin.x);
-
-				// Get ACTUAL position
-				auto actual_pos_mm = axes[i]->count_to_mm(axes[i]->GetPosition());
-				glm::vec3 actual_ee = glm::vec3(origin.x, origin.y + actual_pos_mm, 0);
-
-				// Check that we are in bounds (mm)
-				float min_bounds = -10;
+				float min_bounds = -50;
 				float max_bounds = 800;
 				// If we're in bounds, send the velocity move
-				if (actual_pos_mm >= min_bounds && actual_pos_mm <= max_bounds) {
-					// Get velocity to DESIRED position		
-					auto actual_dist = glm::distance(actual_ee, projected);
-					float dt = vel_time_step.get();
-					auto vel = actual_dist / dt;
-					// clamp the velocity in case the distance jumps
-					if (vel > vel_max.get())
-						cout << "CLAMPING VELOCITY " << ofToString(vel) << endl;
-					vel = min(vel, vel_max.get());
-					if (projected.y - actual_ee.y < 0)
-						vel *= -1;
+				if (actual_dist_mm >= min_bounds && actual_dist_mm <= max_bounds) {
 					// Do a velocity move to send the ee towards the desired position
-					axes[i]->Get()->Motion.MoveVelStart(vel);
+					axes[i]->Get()->Motion.MoveVelStart(desired_vel);
 				}
 				// Ohterwise, stop the motor
 				else {
-					cout << "out of bounds! Position is: " << actual_pos_mm << ". STOPPING MOTION." << endl;
-					//axes[i]->Get()->Motion.MoveVelStart(0);
+					cout << "Out of bounds! Position is: " << actual_dist_mm << ". STOPPING MOTION." << endl;
 					axes[i]->Get()->Motion.NodeStop(STOP_TYPE_RAMP);
 				}
 
-				// This is a trapezoidal move ... it won't run smoothly
+				// This is a trapezoidal move ... it does't run smoothly
 				//axes[i]->Get()->Motion.MovePosnStart(pos_cnt, true, false);
 			}
 		}
@@ -108,31 +107,26 @@ void ofApp::draw() {
 	ofSetColor(ofColor::white, 120);
 	ofSetLineWidth(3);
 	for (auto axis : axes) {
-		auto origin = axis->position_world.get();
-		auto projected = get_projected_point(curve, origin.x);
-		auto dist = glm::distance(toGlm(origin), projected);
+
+		auto offset = origin + ((desired_pos - origin) / 2);
 		ofSetColor(ofColor::white, 120);
 		ofDrawCircle(origin.x, origin.y, 20);
-		ofDrawLine(origin, projected);
+		ofDrawLine(origin, desired_pos);
 		ofSetColor(ofColor::aquamarine);
-		ofDrawCircle(projected.x, projected.y, 5);
-		ofDrawBitmapString(ofToString(dist) + " mm", origin.x + 10, origin.y + dist / 2.0);
+		ofDrawCircle(desired_pos.x, desired_pos.y, 5);
+		ofDrawBitmapString(ofToString(desired_dist_mm) + " mm", offset.x + 10, offset.y);
 
 		// Show ACTUAL position
-		auto actual_pos_mm = axis->count_to_mm(axis->GetPosition());
-		glm::vec3 actual_ee = glm::vec3(origin.x, origin.y + actual_pos_mm, 0);
 		ofSetColor(ofColor::red);
-		ofDrawCircle(actual_ee.x, actual_ee.y, 5);
+		ofDrawCircle(actual_pos.x, actual_pos.y, 5);
 
 		// Show velocity to DESIRED position		
 		ofSetColor(ofColor::lightCoral);
-		auto actual_dist = glm::distance(actual_ee, projected);
-		auto dt = vel_time_step.get();
-		auto vel = actual_dist / dt;
-		vel = min(vel, vel_max.get());
-		if (projected.y - actual_ee.y < 0)
-			vel *= -1;
-		ofDrawBitmapString(ofToString(vel) + " RPM", origin.x + 10, origin.y + dist / 2.0 + 20);
+		ofDrawBitmapString(ofToString(desired_vel) + " RPM", offset.x + 10, offset.y + 20);
+
+		// Show PID velocity
+		ofSetColor(ofColor::greenYellow);
+		ofDrawBitmapString(ofToString(pid_vel) + " RPM", offset.x + 10, offset.y + 40);
 	}
 	ofPopStyle();
 
