@@ -27,40 +27,65 @@ void ofApp::setup() {
 		axes[i]->panel.setPosition(x, y);
 		x += axes[i]->panel.getWidth() + 5;
 	}
+
+	setup_osc_controller();
 }
 
 //--------------------------------------------------------------
 void ofApp::update() {
+
+	if (use_osc_controller)
+		update_osc_controller();
+
+	else if (use_sine_curve)
+		update_sine_curve();
+
+
 	for (int i = 0; i < axes.size(); i++) {
-		origin = toGlm(axes[i]->position_world.get());
 
 		actual_dist_mm = axes[i]->count_to_mm(axes[i]->GetPosition());
-		actual_pos = glm::vec3(origin.x, origin.y + actual_dist_mm, 0);
 
-		desired_pos = get_projected_point(curve, origin.x);
-		desired_dist_mm = glm::distance(origin, desired_pos);
+		if (use_sine_curve) {
+			origin = toGlm(axes[i]->position_world.get());
+			actual_pos = glm::vec3(origin.x, origin.y + actual_dist_mm, 0);
+			desired_pos = get_projected_point(curve, origin.x);
+			desired_dist_mm = glm::distance(origin, desired_pos);
+		}
+		else if (use_osc_controller) {
+			origin = spools[i].home.getGlobalPosition();
+			actual_pos = glm::vec3(origin.x, origin.y + actual_dist_mm, 0);
+			desired_pos = spools[i].pos.getGlobalPosition();
+			desired_dist_mm = glm::distance(origin, desired_pos);
+		}
+
 
 		// Calculate the desired velocity
 		// Get velocity to DESIRED position		
 		auto actual_to_desired_dist = glm::distance(actual_pos, desired_pos);
-		float pid_actual_to_desired_dist = axes[i]->pid.update(actual_to_desired_dist);
+		//float pid_actual_to_desired_dist = axes[i]->pid.update(actual_to_desired_dist);
+		//cout << "pid_actual_to_desired_dist: " << pid_actual_to_desired_dist << endl;
 		float dt = vel_time_step.get();
 		desired_vel = actual_to_desired_dist / dt;
-		desired_vel = pid_actual_to_desired_dist / dt;
+		auto curr_vel = axes[i]->Get()->Motion.VelMeasured.Value();
+		//axes[i]->pid.setSetpoint(curr_vel);
+		//pid_vel = axes[i]->pid.update(desired_vel);
+		//desired_vel = pid_actual_to_desired_dist / dt;
 		// clamp the velocity in case the distance jumps
 		if (desired_vel > vel_max.get())
-			cout << "CLAMPING VELOCITY " << ofToString(desired_vel) << endl;
+			cout << "CLAMPING VELOCITY {" << ofToString(desired_vel) << "} to " << vel_max.get() << endl;
 		desired_vel = min(desired_vel, vel_max.get());
-		if (desired_pos.y - actual_pos.y > 0)
+		if (desired_pos.y - actual_pos.y < 0) {
 			desired_vel *= -1;
-
-		//pid_vel = axes[i]->pid.update(desired_vel) * -1;
-		//auto pid_vel_clamp = min(abs(pid_vel), vel_max.get());
-		//pid_vel = (pid_vel < 0 ? pid_vel_clamp * -1 : pid_vel_clamp);
+		}
+		//else {
+		//	pid_vel *= -1;
+		//}
+		//cout << "pid_vel: " << pid_vel << endl;
+		//desired_vel = pid_vel;
 
 
 		// move the motor based on the sine curve
-		if (use_sine_curve && play) {
+		if ((use_sine_curve || use_osc_controller) && play) {
 			// Update the gui with the origin_to_desired distance
 			axes[i]->move_target_mm.set(desired_dist_mm);
 
@@ -68,7 +93,7 @@ void ofApp::update() {
 			axes[i]->Get()->Status.RT.Refresh();
 			if (axes[i]->Get()->Status.RT.Value().cpm.MoveBufAvail) {
 				float min_bounds = -50;
-				float max_bounds = 800;
+				float max_bounds = 1100;
 				// If we're in bounds, send the velocity move
 				if (actual_dist_mm >= min_bounds && actual_dist_mm <= max_bounds) {
 					// Do a velocity move to send the ee towards the desired position
@@ -80,16 +105,11 @@ void ofApp::update() {
 					axes[i]->Get()->Motion.NodeStop(STOP_TYPE_RAMP);
 				}
 
-				// This is a trapezoidal move ... it does't run smoothly
+				// Can't use this trapezoidal move ... it does't work smoothly for continuous movement (great for PTP)
 				//axes[i]->Get()->Motion.MovePosnStart(pos_cnt, true, false);
 			}
 		}
 		axes[i]->update();
-	}
-
-	// Update sine curve
-	if (use_sine_curve) {
-		update_sine_curve();
 	}
 }
 
@@ -97,38 +117,12 @@ void ofApp::update() {
 void ofApp::draw() {
 	ofBackground(60);
 
-	// Draw Curve (2D)
-	ofPushStyle();
-	ofNoFill();
-	ofSetColor(ofColor::magenta, 120);
-	ofSetLineWidth(5);
-	curve.draw();
-	ofFill();
-	ofSetColor(ofColor::white, 120);
-	ofSetLineWidth(3);
-	for (auto axis : axes) {
-
-		auto offset = origin + ((desired_pos - origin) / 2);
-		ofSetColor(ofColor::white, 120);
-		ofDrawCircle(origin.x, origin.y, 20);
-		ofDrawLine(origin, desired_pos);
-		ofSetColor(ofColor::aquamarine);
-		ofDrawCircle(desired_pos.x, desired_pos.y, 5);
-		ofDrawBitmapString(ofToString(desired_dist_mm) + " mm", offset.x + 10, offset.y);
-
-		// Show ACTUAL position
-		ofSetColor(ofColor::red);
-		ofDrawCircle(actual_pos.x, actual_pos.y, 5);
-
-		// Show velocity to DESIRED position		
-		ofSetColor(ofColor::lightCoral);
-		ofDrawBitmapString(ofToString(desired_vel) + " RPM", offset.x + 10, offset.y + 20);
-
-		// Show PID velocity
-		ofSetColor(ofColor::greenYellow);
-		ofDrawBitmapString(ofToString(pid_vel) + " RPM", offset.x + 10, offset.y + 40);
+	if (use_sine_curve) {
+		draw_sine_curve();
 	}
-	ofPopStyle();
+	else if (use_osc_controller) {
+		draw_osc_controller();
+	}
 
 	if (showGUI) {
 		panel.draw();
@@ -178,6 +172,279 @@ void ofApp::update_sine_curve()
 	for (int i = 0; i < curve.getVertices().size(); i++) {
 		curve.getVertices()[i].y = sin(x) * crv_amp + ofGetHeight() / 2;
 		x += dx;
+	}
+}
+
+void ofApp::draw_sine_curve()
+{
+	ofPushStyle();
+	ofNoFill();
+	ofSetColor(ofColor::magenta, 120);
+	ofSetLineWidth(5);
+	curve.draw();
+	ofFill();
+	ofSetColor(ofColor::white, 120);
+	ofSetLineWidth(3);
+	for (auto axis : axes) {
+
+		auto offset = origin + ((desired_pos - origin) / 2);
+		ofSetColor(ofColor::white, 120);
+		ofDrawCircle(origin.x, origin.y, 20);
+		ofDrawLine(origin, desired_pos);
+		ofSetColor(ofColor::aquamarine);
+		ofDrawCircle(desired_pos.x, desired_pos.y, 5);
+		ofDrawBitmapString(ofToString(desired_dist_mm) + " mm", offset.x + 10, offset.y);
+
+		// Show ACTUAL position
+		ofSetColor(ofColor::red);
+		ofDrawCircle(actual_pos.x, actual_pos.y, 5);
+
+		// Show velocity to DESIRED position		
+		ofSetColor(ofColor::lightCoral);
+		ofDrawBitmapString(ofToString(desired_vel) + " RPM", offset.x + 10, offset.y + 20);
+
+		// Show PID velocity
+		ofSetColor(ofColor::greenYellow);
+		ofDrawBitmapString(ofToString(pid_vel) + " RPM", offset.x + 10, offset.y + 40);
+	}
+	ofPopStyle();
+}
+
+void ofApp::setup_osc_controller()
+{
+	// setup OSC connection
+	receiver.setup(port);
+
+	start.set(ofGetWidth() / 4, ofGetHeight() / 4, 0);
+	end.set(3 * ofGetWidth() / 4, ofGetHeight() / 4, 0);
+	float dist = start.distance(end);
+	float step = (axes.size() > 1) ? dist / (axes.size() - 1) : 0;
+	for (int i = 0; i < axes.size(); i++) {
+		float x = start.x + i * step;
+		float y = start.y;
+		Spool spool;
+		spool.setup(ofVec3f(x, y, 0), 12, 1000, 50);
+		spools.push_back(spool);
+	}
+}
+
+void ofApp::update_osc_controller()
+{
+	checkForOSCMessage();
+}
+
+void ofApp::draw_osc_controller()
+{
+	ofPushStyle();
+
+	// draw the start and end path
+	ofDrawEllipse(start, 15, 15);
+	ofDrawEllipse(end, 15, 15);
+	ofSetLineWidth(3);
+	ofSetColor(80);
+	ofDrawLine(start, end);
+
+	int i = 0;
+	for (int i = 0; i < axes.size(); i++) {
+		spools[i].draw();
+
+		// Show ACTUAL position
+		ofSetColor(ofColor::red);
+		ofDrawCircle(actual_pos.x, actual_pos.y, 5);
+	}
+
+	ofPopStyle();
+}
+
+void ofApp::reset_osc_controller()
+{
+	start.set(ofGetWidth() / 4, ofGetHeight() / 4, 0);
+	end.set(3 * ofGetWidth() / 4, ofGetHeight() / 4, 0);
+	float dist = start.distance(end);
+	float step = (axes.size() > 1) ? dist / (axes.size() - 1) : 0;
+	for (int i = 0; i < axes.size(); i++) {
+		float x = start.x + i * step;
+		float y = start.y;
+		spools[i].home.setGlobalPosition(x, y, 0);
+	}
+}
+
+void ofApp::checkForOSCMessage()
+{
+
+	// check for waiting messages
+	while (receiver.hasWaitingMessages()) {
+
+		// get the next message
+		ofxOscMessage m;
+		receiver.getNextMessage(m);
+
+		// check for mouse moved message
+		if (m.getAddress().find("microfreak") != std::string::npos) {
+			std::cout << "MICROFREAK!!!!! " << '\n';
+			string msgString = "" + m.getAddress() + "\n";
+			if (m.getAddress().find("envelope_decay") != std::string::npos) {
+			}
+			else if (m.getAddress().find("filter_cutoff") != std::string::npos) {
+			}
+			else if (m.getAddress().find("filter_resonance") != std::string::npos) {
+			}
+			else if (m.getAddress().find("cycling_env_rise") != std::string::npos) {
+			}
+			else if (m.getAddress().find("cycling_env_fall") != std::string::npos) {
+			}
+			else if (m.getAddress().find("cycling_env_hold") != std::string::npos) {
+			}
+			else if (m.getAddress().find("cycling_env_amount") != std::string::npos) {
+			}
+			else if (m.getAddress().find("envelope_attack") != std::string::npos) {
+			}
+			else if (m.getAddress().find("envelope_decay") != std::string::npos) {
+			}
+			else if (m.getAddress().find("envelope_sustain") != std::string::npos) {
+			}
+			else if (m.getAddress().find("envelope_amount") != std::string::npos) {
+			}
+			else if (m.getAddress().find("lfo_rate_sync") != std::string::npos) {
+			}
+			else if (m.getAddress().find("lfo_rate_free") != std::string::npos) {
+			}
+			else if (m.getAddress().find("arp_rate_sync") != std::string::npos) {
+			}
+			else if (m.getAddress().find("arp_rate_free") != std::string::npos) {
+			}
+			else if (m.getAddress().find("oscillator_type") != std::string::npos) {
+			}
+			else if (m.getAddress().find("oscillator_wave") != std::string::npos) {
+			}
+			else if (m.getAddress().find("oscillator_timbre") != std::string::npos) {
+			}
+			else if (m.getAddress().find("oscillator_shape") != std::string::npos) {
+			}
+			else if (m.getAddress().find("pitchbend") != std::string::npos) {
+			}
+			else if (m.getAddress().find("glide") != std::string::npos) {
+			}
+
+			// The rest are keys
+			else {
+
+				for (size_t i = 0; i < m.getNumArgs(); i++) {
+
+					// get the last number in the address
+					auto start = m.getAddress().find_last_of('/') + 1;
+
+					auto end = m.getAddress().length() - 1;
+					if (start != std::string::npos) {
+						cout << m.getAddress().substr(start, end) << endl;
+						auto key_code = stoi(m.getAddress().substr(start, end));
+						cout << "keycode: " << key_code << ", (key_code % 12): " << (key_code % 12) << endl;
+						int interval = key_code % 12;
+						switch (interval)
+						{
+						case 0:
+							cout << "\tC!" << endl;
+
+							break;
+						case 1:
+							cout << "\tC#!" << endl;
+							break;
+						case 2:
+							cout << "\tD!" << endl;
+							break;
+						case 3:
+							cout << "\tE#!" << endl;
+							break;
+						case 4:
+							cout << "\tE!" << endl;
+							break;
+						case 5:
+							cout << "\tF!" << endl;
+							break;
+						case 6:
+							cout << "\tF#!" << endl;
+							break;
+						case 7:
+							cout << "\tG!" << endl;
+							break;
+						case 8:
+							cout << "\tG#!" << endl;
+							break;
+						case 9:
+							cout << "\tA!" << endl;
+							break;
+						case 10:
+							cout << "\tBb!" << endl;
+							break;
+						case 11:
+							cout << "\tB!" << endl;
+							break;
+						default:
+							break;
+						}
+						if (key_code == 48) interval = 0;
+						else if (key_code == 60) interval = 12;
+
+						auto target_pos = interval;
+						if (m.getArgType(i) == OFXOSC_TYPE_FLOAT) {
+							float pressure = m.getArgAsFloat(i);		// value between 0-1
+							pressure = ofMap(pressure, 0, 1, 0, spools[0].interval_dist);
+							spools[0].pressure_offset = pressure;
+						}
+						spools[0].set_position(interval);
+					}
+
+					// get the argument type
+					msgString += " ";
+					msgString += m.getArgTypeName(i);
+					msgString += ":";
+
+					// display the argument - make sure we get the right type
+					if (m.getArgType(i) == OFXOSC_TYPE_INT32) {
+						msgString += ofToString(m.getArgAsInt32(i));
+					}
+					else if (m.getArgType(i) == OFXOSC_TYPE_FLOAT) {
+						msgString += ofToString(m.getArgAsFloat(i));
+					}
+					else if (m.getArgType(i) == OFXOSC_TYPE_STRING) {
+						msgString += m.getArgAsString(i);
+					}
+					else {
+						msgString += "unhandled argument type " + m.getArgTypeName(i);
+					}
+					msgString += "\n";
+				}
+			}
+			//cout << msgString << endl;
+		}
+		// unrecognized message
+		else {
+			string msgString;
+			msgString = m.getAddress();
+			msgString += ":";
+			for (size_t i = 0; i < m.getNumArgs(); i++) {
+
+				// get the argument type
+				msgString += " ";
+				msgString += m.getArgTypeName(i);
+				msgString += ":";
+
+				// display the argument - make sure we get the right type
+				if (m.getArgType(i) == OFXOSC_TYPE_INT32) {
+					msgString += ofToString(m.getArgAsInt32(i));
+				}
+				else if (m.getArgType(i) == OFXOSC_TYPE_FLOAT) {
+					msgString += ofToString(m.getArgAsFloat(i));
+				}
+				else if (m.getArgType(i) == OFXOSC_TYPE_STRING) {
+					msgString += m.getArgAsString(i);
+				}
+				else {
+					msgString += "unhandled argument type " + m.getArgTypeName(i);
+				}
+			}
+			cout << msgString << endl;
+		}
 	}
 }
 
@@ -278,6 +545,7 @@ void ofApp::setup_gui()
 	mode_color_eStop = ofColor(250, 0, 0, 100);
 	mode_color_normal = ofColor(60, 120);
 	mode_color_disabled = ofColor(0, 200);
+	mode_color_playing = ofColor(ofColor::blueSteel);
 
 	int gui_width = 250;
 
@@ -289,7 +557,7 @@ void ofApp::setup_gui()
 	params_motion_control.setName("Motion_Controls");
 	params_motion_control.add(play.set("Play", false));
 	params_motion_control.add(pause.set("Pause", true));
-	params_motion_control.add(vel_time_step.set("Vel_dt", 2., 0.05, 1.));
+	params_motion_control.add(vel_time_step.set("Vel_dt", 1., 0.05, 1.));
 	params_motion_control.add(vel_max.set("VEL_MAX", 300, 0, 500));
 
 
@@ -301,7 +569,7 @@ void ofApp::setup_gui()
 	params_hub.add(eStopAll.set("E_STOP_ALL", false));
 	params_motion.setName("Motion_Parameters");
 	params_motion.add(vel_all.set("Velocity_ALL", 300, 0, 600));
-	params_motion.add(accel_all.set("Acceleration_ALL", 2000, 0, 4000));
+	params_motion.add(accel_all.set("Acceleration_ALL", 500, 0, 4000));
 	params_macros.setName("Macros");
 	params_macros.add(move_trigger_all.set("Trigger_Move", false));
 	params_macros.add(move_target_all.set("Move_Target", 0, -50000, 50000));
@@ -334,19 +602,25 @@ void ofApp::setup_gui()
 	params_curve.add(crv_amp.set("Amplitude", 0, 0, 1000));
 	params_curve.add(crv_speed.set("Speed", 0.02, 0.001, .25));
 
-	panel_curve.setup("Curve_Controller");
-	panel_curve.add(use_sine_curve.set("Use_Sine_Crv", true));
+	panel_curve.setup("Motion_Controller");
+	panel_curve.add(use_sine_curve.set("Use_Sine_Crv", false));
+	panel_curve.add(use_osc_controller.set("Use_OSC_Controller", true));
 	panel_curve.add(params_curve);
 	panel_curve.setPosition(panel.getPosition().x, panel.getPosition().y + panel.getHeight() + 15);
+
+	use_sine_curve.addListener(this, &ofApp::on_use_sine_curve);
+	use_osc_controller.addListener(this, &ofApp::on_use_osc_controller);
 
 }
 
 void ofApp::on_play(bool& val)
 {
 	if (val) {
+		panel.setBorderColor(mode_color_playing);
 		pause.set(false);
 	}
 	else {
+		panel.setBorderColor(mode_color_normal);
 		pause.set(true);
 	}
 }
@@ -448,6 +722,22 @@ void ofApp::on_move_zero_all(bool& val)
 	move_zero_all.set(false);
 }
 
+void ofApp::on_use_sine_curve(bool& val)
+{
+	if (val) {
+		use_osc_controller.set(false);
+	}
+	else {
+	}
+}
+
+void ofApp::on_use_osc_controller(bool& val)
+{
+	if (val) {
+		use_sine_curve.set(false);
+	}
+}
+
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key) {
 
@@ -478,6 +768,10 @@ void ofApp::keyPressed(int key) {
 	case 'P':
 		// software enable / disable sending move commands to motors
 		play.set(!play.get());
+		for (int i = 0; i < axes.size(); i++) {
+			axes[i]->pid.resetIntegral();
+			axes[i]->pid.resetActivityCounter();
+		}
 		break;
 	default:
 		break;
@@ -522,7 +816,7 @@ void ofApp::mouseExited(int x, int y) {
 
 //--------------------------------------------------------------
 void ofApp::windowResized(int w, int h) {
-
+	reset_osc_controller();
 }
 
 //--------------------------------------------------------------

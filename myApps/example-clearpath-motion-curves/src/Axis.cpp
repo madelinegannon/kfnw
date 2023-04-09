@@ -239,7 +239,6 @@ void Axis::InitMotionParams() {
  * @param (bool)  addDwell: whether to delay the next move being issued by DwellMs after this move profile completes.
  */
 void Axis::PosnMove(int32_t targetPosn, bool isAbsolute, bool addDwell) {
-	cout << "yo" << endl;
 	// Save the move's calculated time for timeout handling
 	m_moveTimeoutMs = (int32_t)m_node->Motion.MovePosnDurationMsec(targetPosn,
 		isAbsolute);
@@ -259,7 +258,6 @@ void Axis::PosnMove(int32_t targetPosn, bool isAbsolute, bool addDwell) {
 
 	// Issue the move to the node
 	m_node->Motion.MovePosnStart(targetPosn, isAbsolute, addDwell);
-	cout << "\tmove_sent: " << ofGetElapsedTimef() << endl;
 }
 
 /**
@@ -533,11 +531,11 @@ void Axis::setup_gui()
 
 	params_motion.setName("Motion_Parameters");
 	params_motion.add(vel.set("Velocity", 300, 0, 600));
-	params_motion.add(accel.set("Acceleration", 2000, 0, 4000));
+	params_motion.add(accel.set("Acceleration", 500, 0, 4000)); // @NOTE: changed from 2,000 to 500
 
 	params_pid.setName("PID_Parameters");
 	params_pid.add(kp.set("Kp", 1.0, 0.1, 10.0));
-	params_pid.add(ki.set("Ki", 0.005, 0.001, 1.0));
+	params_pid.add(ki.set("Ki", 0.0001, 0.0001, 0.01));
 	params_pid.add(kd.set("Kd", 0.005, 0.001, 3.0));
 	time_sampling.set("Ts", (1 / 60.), 0.001, 1.0);
 	params_pid.add(cuttoff.set("Cutoff", 0, 0, 1.0));
