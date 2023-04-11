@@ -228,6 +228,157 @@ public:
 		}
 	}
 
+
+
+	struct Spool
+	{
+		ofNode home;
+		ofNode start;
+		ofNode end;
+		ofNode pos;
+		float dist;
+		float max_dist;
+		int interval_count = 2;
+		int interval_index = 0;
+		float interval_dist = 0;
+		float start_offset;
+		float end_offset;
+		float pressure_offset = 0;
+		vector<ofNode> intervals;
+
+		void setup(ofVec3f home_pos, int num_intervals, float end_offset, float start_offset = 0) {
+			this->start_offset = start_offset;
+			this->end_offset = end_offset;
+
+			home.setGlobalPosition(home_pos);
+			start.setParent(home);
+			end.setParent(start);
+			pos.setParent(start);
+
+			start.setPosition(0, start_offset, 0);
+			end.setPosition(0, end_offset, 0);
+			pos.setPosition(0, end_offset, 0);
+
+			interval_dist = (end_offset - start_offset) / num_intervals;
+
+			interval_count = num_intervals;
+			for (int i = interval_count; i >= 0; i--) {			// DO ONE EXTRA INTERVAL SO WE HAVE A FULL SCALE (13 positions)
+				float t = float(i) / float(interval_count);
+				ofNode n;
+				auto p = toGlm(toOf(start.getGlobalPosition()).getInterpolated(toOf(end.getGlobalPosition()), t));
+				float offset = glm::distance(start.getGlobalPosition(), p);
+				n.setParent(start);
+				n.setPosition(0, offset, 0);
+				intervals.push_back(n);
+			}
+
+			stringstream ss;
+			ss << "home position (GLOBAL): " << ofToString(home.getGlobalPosition()) << endl;
+			ss << "START position (GLOBAL): " << ofToString(start.getGlobalPosition());
+			ss << "\tSTART position (LOCAL): " << ofToString(start.getPosition()) << endl;
+			ss << "POS position (GLOBAL): " << ofToString(pos.getGlobalPosition());
+			ss << "\tPOS position (LOCAL): " << ofToString(pos.getPosition()) << endl;
+			ss << "END position (GLOBAL): " << ofToString(end.getGlobalPosition());
+			ss << "\tEND position (LOCAL): " << ofToString(end.getPosition()) << endl;
+			cout << ss.str() << endl << endl;
+		}
+
+		void draw() {
+			ofPushStyle();
+			ofSetColor(ofColor::white, 80);
+
+			auto home_pos = home.getGlobalPosition();
+			auto start_pos = start.getGlobalPosition();
+			auto end_pos = end.getGlobalPosition();
+
+			// weird bug that's resetting the global position ... force it to re-correct 
+			if (start.getGlobalPosition() == start.getPosition()) {
+				start.clearParent();
+				end.clearParent();
+				pos.clearParent();
+				start.setParent(home);
+				end.setParent(start);
+				pos.setParent(start);
+
+				start.setPosition(0, start_offset, 0);
+				end.setPosition(0, end_offset, 0);
+				int i = 0;
+				for (auto& interval : intervals) {
+					interval.clearParent();
+					interval.setParent(start);
+					float t = float(i) / float(interval_count);
+					auto p = toGlm(toOf(end.getGlobalPosition()).getInterpolated(toOf(start.getGlobalPosition()), t));
+					float offset = glm::distance(start.getGlobalPosition(), p);
+					interval.setPosition(0, offset, 0);
+					i++;
+				}
+
+				stringstream ss;
+				ss << "START position (GLOBAL): " << ofToString(start.getGlobalPosition());
+				ss << "\tSTART position (LOCAL): " << ofToString(start.getPosition()) << endl;
+				ss << "POS position (GLOBAL): " << ofToString(pos.getGlobalPosition());
+				ss << "\tPOS position (LOCAL): " << ofToString(pos.getPosition()) << endl;
+				ss << "END position (GLOBAL): " << ofToString(end.getGlobalPosition());
+				ss << "\tEND position (LOCAL): " << ofToString(end.getPosition()) << endl;
+				cout << ss.str() << endl << endl;
+			}
+
+
+			// Draw line from home to end
+			ofSetLineWidth(5);
+			ofDrawLine(home.getGlobalPosition(), end_pos);
+
+			// Draw home position
+			ofDrawCircle(home_pos.x, home_pos.y, 20);
+
+			// Draw start  & end positions
+			ofSetColor(ofColor::white, 200);
+			ofDrawCircle(start_pos.x, start_pos.y, 10);
+			ofDrawCircle(end_pos.x, end_pos.y, 10);
+
+			// Draw intervals
+			ofSetColor(ofColor::white, 120);
+			int i = 0;
+			for (auto interval : intervals) {
+				ofDrawCircle(interval.getGlobalPosition().x, interval.getGlobalPosition().y, 5);
+				ofDrawBitmapString(ofToString(i), interval.getGlobalPosition().x - 25, interval.getGlobalPosition().y + 5);
+				i++;
+			}
+
+			// Show current position
+			ofSetColor(ofColor::orange, 120);
+			ofDrawLine(start_pos, pos.getGlobalPosition());
+			ofSetColor(ofColor::orange);
+			ofDrawCircle(pos.getGlobalPosition().x, pos.getGlobalPosition().y, 5);
+
+			ofSetColor(ofColor::white, 120);
+			auto mid_pt = (start_pos + pos.getGlobalPosition()) / 2;
+			auto dist = glm::distance(start_pos, pos.getGlobalPosition());
+			ofDrawBitmapString(ofToString(dist) + " mm", pos.getGlobalPosition().x + 10, pos.getGlobalPosition().y + 4);
+
+			dist = glm::distance(home_pos, pos.getGlobalPosition());
+			ofSetColor(ofColor::white, 80);
+			ofDrawBitmapString(ofToString(dist) + " mm (actual)", pos.getGlobalPosition().x + 10, pos.getGlobalPosition().y + 20);
+
+			ofPopStyle();
+		}
+
+		/**
+		 * @brief Moves the pos to a given interval.
+		 *
+		 * @param ()  index:
+		 */
+		void set_position(int interval_index) {
+			auto p = intervals[interval_index].getPosition();
+			p.y -= pressure_offset * 2;
+			pos.setPosition(p);
+
+			// reset the pressure offset
+			pressure_offset = 0;
+		}
+	};
+	Spool spool;
+
 };
 
 #endif

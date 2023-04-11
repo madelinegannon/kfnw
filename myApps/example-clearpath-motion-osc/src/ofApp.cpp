@@ -52,9 +52,9 @@ void ofApp::update() {
 			desired_dist_mm = glm::distance(origin, desired_pos);
 		}
 		else if (use_osc_controller) {
-			origin = spools[i].home.getGlobalPosition();
+			origin = axes[i]->spool.home.getGlobalPosition();
 			actual_pos = glm::vec3(origin.x, origin.y + actual_dist_mm, 0);
-			desired_pos = spools[i].pos.getGlobalPosition();
+			desired_pos = axes[i]->spool.pos.getGlobalPosition();
 			desired_dist_mm = glm::distance(origin, desired_pos);
 		}
 
@@ -187,25 +187,34 @@ void ofApp::draw_sine_curve()
 	ofSetLineWidth(3);
 	for (auto axis : axes) {
 
-		auto offset = origin + ((desired_pos - origin) / 2);
+		// Show ACTUAL position
+		ofSetColor(ofColor::red);
+		auto dist_mm = axis->count_to_mm(axis->GetPosition());
+		auto home = toGlm(axis->position_world.get());
+		auto pos = glm::vec3(home.x, home.y + dist_mm, 0);
+		auto _desired_pos = get_projected_point(curve, home.x);
+		auto _desired_dist_mm = glm::distance(home, _desired_pos);
+
+		auto offset = home + ((_desired_pos - home) / 2);
 		ofSetColor(ofColor::white, 120);
-		ofDrawCircle(origin.x, origin.y, 20);
-		ofDrawLine(origin, desired_pos);
+		ofDrawCircle(home.x, home.y, 20);
+		ofDrawLine(home, _desired_pos);
 		ofSetColor(ofColor::aquamarine);
-		ofDrawCircle(desired_pos.x, desired_pos.y, 5);
-		ofDrawBitmapString(ofToString(desired_dist_mm) + " mm", offset.x + 10, offset.y);
+		ofDrawCircle(_desired_pos.x, _desired_pos.y, 5);
+		ofDrawBitmapString(ofToString(_desired_dist_mm) + " mm", offset.x + 10, offset.y);
 
 		// Show ACTUAL position
 		ofSetColor(ofColor::red);
-		ofDrawCircle(actual_pos.x, actual_pos.y, 5);
+		ofDrawCircle(pos.x, pos.y, 5);
+		//ofDrawCircle(actual_pos.x, actual_pos.y, 5);
 
 		// Show velocity to DESIRED position		
-		ofSetColor(ofColor::lightCoral);
-		ofDrawBitmapString(ofToString(desired_vel) + " RPM", offset.x + 10, offset.y + 20);
+		//ofSetColor(ofColor::lightCoral);
+		//ofDrawBitmapString(ofToString(desired_vel) + " RPM", offset.x + 10, offset.y + 20);
 
 		// Show PID velocity
-		ofSetColor(ofColor::greenYellow);
-		ofDrawBitmapString(ofToString(pid_vel) + " RPM", offset.x + 10, offset.y + 40);
+		//ofSetColor(ofColor::greenYellow);
+		//ofDrawBitmapString(ofToString(pid_vel) + " RPM", offset.x + 10, offset.y + 40);
 	}
 	ofPopStyle();
 }
@@ -222,9 +231,10 @@ void ofApp::setup_osc_controller()
 	for (int i = 0; i < axes.size(); i++) {
 		float x = start.x + i * step;
 		float y = start.y;
-		Spool spool;
-		spool.setup(ofVec3f(x, y, 0), 12, 1000, 50);
-		spools.push_back(spool);
+		axes[i]->spool.setup(ofVec3f(x, y, 0), 12, 1000, 50);
+		//Spool spool;
+		//spool.setup(ofVec3f(x, y, 0), 12, 1000, 50);
+		//spools.push_back(spool);
 	}
 }
 
@@ -244,13 +254,15 @@ void ofApp::draw_osc_controller()
 	ofSetColor(80);
 	ofDrawLine(start, end);
 
-	int i = 0;
 	for (int i = 0; i < axes.size(); i++) {
-		spools[i].draw();
+		axes[i]->spool.draw();
 
 		// Show ACTUAL position
 		ofSetColor(ofColor::red);
-		ofDrawCircle(actual_pos.x, actual_pos.y, 5);
+		auto dist_mm = axes[i]->count_to_mm(axes[i]->GetPosition());
+		auto home = axes[i]->spool.home.getGlobalPosition();
+		auto pos = glm::vec3(home.x, home.y + dist_mm, 0);
+		ofDrawCircle(pos.x, pos.y, 5);
 	}
 
 	ofPopStyle();
@@ -265,7 +277,7 @@ void ofApp::reset_osc_controller()
 	for (int i = 0; i < axes.size(); i++) {
 		float x = start.x + i * step;
 		float y = start.y;
-		spools[i].home.setGlobalPosition(x, y, 0);
+		axes[i]->spool.home.setGlobalPosition(x, y, 0);
 	}
 }
 
@@ -385,13 +397,30 @@ void ofApp::checkForOSCMessage()
 						if (key_code == 48) interval = 0;
 						else if (key_code == 60) interval = 12;
 
+						// chose which motor to move ... key_codes in range 48 - 72
+						// hard coded for 2 motors right now :'( one octave per motor
+						int index = 0;
+						if (axes.size() > 1) {
+							int key_code_start = 48;
+							int key_code_end = 72;
+							int num_steps = key_code_end - key_code_start;
+
+							if (key_code < key_code_start + num_steps / axes.size()) {
+								index = 0;
+							}
+							else {
+								index = 1;
+							}
+						}
+
 						auto target_pos = interval;
 						if (m.getArgType(i) == OFXOSC_TYPE_FLOAT) {
 							float pressure = m.getArgAsFloat(i);		// value between 0-1
-							pressure = ofMap(pressure, 0, 1, 0, spools[0].interval_dist);
-							spools[0].pressure_offset = pressure;
+							pressure = ofMap(pressure, 0, 1, 0, axes[0]->spool.interval_dist);
+
+							axes[index]->spool.pressure_offset = pressure;
 						}
-						spools[0].set_position(interval);
+						axes[index]->spool.set_position(interval);
 					}
 
 					// get the argument type
