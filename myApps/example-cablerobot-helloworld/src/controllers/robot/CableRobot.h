@@ -18,8 +18,11 @@ private:
     float accel_max = 800;      // RPM_PER_SEC
     float position_min = 0;     // absolute position in mm
     float position_max = 2000;  // absolute position in mm
-
     float position_shutdown = 2140;  // absolute position in mm
+
+    bool is_in_bounds_absolute(float target_pos_absolute);
+    bool is_in_bounds_relative(float target_pos_relative);
+
 
     ofNode position_base;
     ofNode position_target;

@@ -44,6 +44,24 @@ void CableRobot::shutdown()
 {
 }
 
+bool CableRobot::is_in_bounds_absolute(float target_pos_absolute)
+{
+	return target_pos_absolute >= bounds_min.get() && target_pos_absolute <= bounds_max.get();
+}
+
+bool CableRobot::is_in_bounds_relative(float target_pos_relative)
+{
+	int curr_pos = count_to_mm(motor_controller->get_motor()->get_position());
+	// Move relative is UP
+	if (target_pos_relative < 0) {
+		return curr_pos - target_pos_relative >= bounds_min.get();
+	}
+	// Move relative is DOWN
+	else {
+		return curr_pos + target_pos_relative <= bounds_max.get();
+	}
+}
+
 /**
  * @brief Checks if the robot is homed, updates the state,
  * and updates the GUI. 
@@ -74,7 +92,7 @@ void CableRobot::setup_gui()
 {
 	mode_color_eStop = ofColor(250, 0, 0, 100);
 	mode_color_not_homed = ofColor::orangeRed;
-	mode_color_enabled = ofColor(60, 120);
+	mode_color_enabled = ofColor(200, 120);
 	mode_color_disabled = ofColor(0, 200);
 
 	int gui_width = 250;
@@ -149,12 +167,26 @@ int CableRobot::mm_to_count(float val, bool use_abs)
 
 bool CableRobot::is_enabled()
 {
-	return motor_controller->get_motor()->is_enabled();
+	bool val = motor_controller->get_motor()->is_enabled();
+
+	if (is_homed()) {
+		if (val)
+			panel.setBorderColor(mode_color_enabled);
+		else
+			panel.setBorderColor(mode_color_disabled);
+	}
+	return val;
 }
 
 bool CableRobot::is_homed()
 {
-	return motor_controller->get_motor()->is_homed();
+	bool val = motor_controller->get_motor()->is_homed();
+	if (!val) {
+		panel.setBorderColor(mode_color_not_homed);
+		state = RobotState::NOT_HOMED;
+		status.set(state_names[state]);
+	}
+	return val;
 }
 
 /**
@@ -183,7 +215,14 @@ void CableRobot::move_position(float target_pos, bool absolute)
 	// convert from mm to motor counts
 	int count = mm_to_count(target_pos);
 	// send move command
-	motor_controller->get_motor()->move_position(count, true);
+	if (absolute) {
+		if (is_in_bounds_absolute(target_pos))
+			motor_controller->get_motor()->move_position(count, true);
+	}
+	else {
+		if (is_in_bounds_relative(target_pos))
+			motor_controller->get_motor()->move_position(count, false);
+	}
 }
 
 float CableRobot::compute_desired_velocity(float target_pos)
@@ -217,15 +256,17 @@ void CableRobot::set_enabled(bool val)
 void CableRobot::on_enable(bool& val)
 {
 	set_enabled(val);
-	if (val) {
-		panel.setBorderColor(mode_color_enabled);
-		state = RobotState::ENABLED;
+	if (is_homed()) {
+		if (val) {
+			panel.setBorderColor(mode_color_enabled);
+			state = RobotState::ENABLED;
+		}
+		else {
+			panel.setBorderColor(mode_color_disabled);
+			state = RobotState::DISABLED;
+		}
+		status.set(state_names[state]);
 	}
-	else {
-		panel.setBorderColor(mode_color_disabled);
-		state = RobotState::DISABLED;
-	}
-	status.set(state_names[state]);
 }
 
 /**
@@ -256,12 +297,17 @@ void CableRobot::on_run_homing()
 	status.set(state_names[state]);
 
 	// if we successfully homed, update the state and gui color
-	if (run_homing_routine()) {
+	if (run_homing_routine(60)) {
 		bool _is_enabled = is_enabled();
 		state = _is_enabled ? RobotState::ENABLED : RobotState::DISABLED;
 		status.set(state_names[state]);
 		auto color = _is_enabled ? mode_color_enabled : mode_color_disabled;
 		panel.setBorderColor(color);
+	}
+	else {
+		state = RobotState::NOT_HOMED;
+		status.set(state_names[state]);
+		panel.setBorderColor(mode_color_not_homed);
 	}
 }
 
@@ -288,11 +334,18 @@ void CableRobot::on_run_shutdown()
 	bool shutting_down = true;
 	while (shutting_down) {
 		auto pos = count_to_mm(motor_controller->get_motor()->get_position(), true);
-		if (bounds_max.get() - pos < 1) {
+		if (position_shutdown - pos < 1) {
 			shutting_down = false;
 		}
 	}
-	on_enable(shutting_down);
+	// wait a brief moment before disabling the motor
+	float start_time = ofGetElapsedTimeMillis();
+	float delay = 1500;
+	while (ofGetElapsedTimeMillis() < start_time + delay)
+	{
+	}
+	// disbale the motor and update the GUI
+	enable.set(shutting_down);
 }
 
 /**
@@ -324,8 +377,8 @@ void CableRobot::on_jog_up()
 		//if (curr_pos + abs(pos) > mm_to_count(bounds_min, true)) {
 		//}
 		int curr_pos = abs(motor_controller->get_motor()->get_position());
-		if (curr_pos - abs(pos) < mm_to_count(bounds_min)) {
-			pos = mm_to_count(bounds_min);
+		if (curr_pos - abs(pos) < mm_to_count(bounds_min.get())) {
+			pos = mm_to_count(bounds_min.get());
 			pos = (drum.direction == Groove::LEFT_HANDED) ? pos * -1 : pos * 1;
 			ofLogWarning("CableRobot::on_jog_up") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_min: " << count_to_mm(pos);
 			motor_controller->get_motor()->move_position(pos, true);
@@ -360,7 +413,7 @@ void CableRobot::jog_down(bool override) {
 	else {
 		// convert from distance to counts
 		int pos = mm_to_count(jog_dist);
-		// check the sign to see if up is + or - for jogging up
+		// check the drum groove direction to see if jogging is + or - for down
 		if (drum.direction == Groove::RIGHT_HANDED) {
 		}
 		else if (drum.direction == Groove::LEFT_HANDED) {
@@ -373,8 +426,8 @@ void CableRobot::jog_down(bool override) {
 		bool send_move = true;
 		if (!override) {
 			int curr_pos = abs(motor_controller->get_motor()->get_position());
-			if (curr_pos + abs(pos) > mm_to_count(bounds_max)) {
-				pos = mm_to_count(bounds_max);
+			if (curr_pos + abs(pos) > mm_to_count(bounds_max.get())) {
+				pos = mm_to_count(bounds_max.get());
 				pos = (drum.direction == Groove::LEFT_HANDED) ? pos * -1 : pos * 1;
 				ofLogWarning("CableRobot::on_jog_down") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_max: " << count_to_mm(pos);
 				motor_controller->get_motor()->move_position(pos, true);

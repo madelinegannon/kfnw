@@ -158,13 +158,20 @@ void RobotController::threadedFunction()
  */
 void RobotController::check_for_system_ready()
 {
+	// check if motors are already enabled
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->enable.set(robots[i]->is_enabled());
+	}
+
+	// check if motors are homed and ready
 	bool is_ready = true;
 	for (int i = 0; i < robots.size(); i++) {
-		if (!robots[i]->is_homed())
+		if (!robots[i]->is_homed()) {
 			is_ready = false;
+		}
 	}
 	state = is_ready ? ControllerState::READY : ControllerState::NOT_READY;
-	// update the gui
+	// update the gui with the READY status
 	status.set(state_names[state]);
 }
 
