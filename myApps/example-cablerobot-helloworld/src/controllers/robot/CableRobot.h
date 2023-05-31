@@ -62,6 +62,8 @@ public:
     void update();
     void draw();
     void shutdown();
+    void key_pressed(int key);
+    int get_id();
 
     void configure(glm::vec3 position,
         Groove direction,
@@ -96,6 +98,10 @@ public:
     void on_run_shutdown();
     void on_jog_up();
     void on_jog_down();
+    void on_move_to();
+    void on_bounds_changed(float& val);
+    void on_vel_limit_changed(float& val);
+    void on_accel_limit_changed(float& val);
     
     ofxPanel panel;
     ofParameterGroup params_control;
@@ -105,10 +111,19 @@ public:
     ofParameter<void> btn_run_homing;
     ofParameter<void> btn_run_shutdown;
 
-    ofParameterGroup params_position;
-    ofParameter<string> position_mm;
-    //ofParameter<string> position_cnts;
-    ofParameterGroup params_bounds;
+    ofParameterGroup params_info;
+    ofParameter<string> info_position_mm;
+    ofParameter<string> info_position_cnt;
+    ofParameter<string> info_vel_limit;
+    ofParameter<string> info_accel_limit;
+
+    ofParameterGroup params_move_to;
+    ofParameter<float> move_to;
+    ofParameter<void> btn_move_to;
+
+    ofParameterGroup params_limits;
+    ofParameter<float> vel_limit;
+    ofParameter<float> accel_limit;
     ofParameter<float> bounds_min;
     ofParameter<float> bounds_max;
 

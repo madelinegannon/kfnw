@@ -19,6 +19,7 @@ private:
     vector<float> positions_target;
     vector<float> positions_actual;
     
+    bool is_initialized = false;
     bool initialize();
     void update();
 
@@ -62,6 +63,8 @@ public:
 
     void add_robot_guis();
 
+    void key_pressed(int key);
+
     ofxPanel panel;
     ofParameter<string> status;
     ofParameter<void> check_status;
@@ -70,6 +73,13 @@ public:
     ofParameter<string> com_ports;
     ofParameter<string> num_com_hubs;
     ofParameter<string> num_robots;
+
+    ofParameterGroup params_sync;
+    ofParameter<int> sync_index;
+    ofParameter<bool> is_synchronized;
+
+    // GUI Listeners
+    void on_synchronize(bool& val);
 
 
     ofColor mode_color_disabled;

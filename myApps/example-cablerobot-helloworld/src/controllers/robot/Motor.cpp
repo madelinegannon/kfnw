@@ -142,26 +142,51 @@ int Motor::get_position()
 	return int64_t(m_node->Motion.PosnCommanded.Value());;
 }
 
+/**
+ * @brief Get the desired velocity.
+ * 
+ * @return (float) desired velocity (RPM) 
+ */
 float Motor::get_velocity()
 {
 	return m_node->Motion.VelLimit.Value();
 }
 
+/**
+ * @brief Get the actual, measured velocity.
+ * 
+ * @return (float)  actual velocity (RPM)
+ */
 float Motor::get_velocity_actual()
 {
 	return m_node->Motion.VelMeasured.Value();
 }
 
+/**
+ * @brief Set the desired velocity.
+ * 
+ * @param (float)  val: desired velocity (RPM)
+ */
 void Motor::set_velocity(float val)
 {
 	m_node->Motion.VelLimit.Value(val);
 }
 
+/**
+ * @brief Get the desired acceleration.
+ *
+ * @return (float)  desired acceleration (RPM/s)
+ */
 float Motor::get_acceleration()
 {
 	return m_node->Motion.AccLimit.Value();
 }
 
+/**
+ * @brief Set the desired acceleration.
+ * 
+ * @param (float)  val: desired acceleration (RPM/s)
+ */
 void Motor::set_acceleration(float val)
 {
 	m_node->Motion.AccLimit.Value(val);

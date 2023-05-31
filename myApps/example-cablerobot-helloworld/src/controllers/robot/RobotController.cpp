@@ -7,28 +7,8 @@ RobotController::RobotController(int count, float offset_x, float offset_y, floa
 RobotController::RobotController(vector<glm::vec3> positions_base)
 {
 	this->positions_base = positions_base;
-	setup_gui();
-
-	// Initialize the CPM System Manager
-	// Create one CableRobot per detected motor
-	if (initialize()) {
-		// update each robot's gui
-		int x = panel.getPosition().x;
-		int y = panel.getPosition().y;
-		int w = panel.getWidth();
-		int padding = 5;
-		for (int i = 0; i < robots.size(); i++) {
-			robots[i]->panel.setPosition(x + w + padding, y);
-			x = robots[i]->panel.getPosition().x;
-			w = robots[i]->panel.getWidth();
-
-			robots[i]->panel.setParent(&panel);
-		}
-
-		// check if system is ready to move (all motors are homed)
-		check_for_system_ready();
-	}
-
+	
+	startThread();
 }
 
 /**
@@ -105,6 +85,7 @@ bool RobotController::initialize()
 			}
 			// update the gui
 			num_robots.set(ofToString(robots.size()));
+			sync_index.setMax(robots.size() - 1);
 		}
 		else {
 			ofLogWarning("RobotController::initialize") << "Unable to locate any SC hub ports.\n\tCheck that ClearView is closed and no other Clearpath applications are running.";
@@ -148,6 +129,30 @@ void RobotController::shutdown()
 void RobotController::threadedFunction()
 {
 	while (isThreadRunning()) {
+		if (!is_initialized) {
+			setup_gui();
+			// Initialize the CPM System Manager
+			// Create one CableRobot per detected motor
+			if (initialize()) {
+				// update each robot's gui
+				int x = panel.getPosition().x;
+				int y = panel.getPosition().y;
+				int w = panel.getWidth();
+				int padding = 5;
+				for (int i = 0; i < robots.size(); i++) {
+					robots[i]->panel.setPosition(x + w + padding, y);
+					x = robots[i]->panel.getPosition().x;
+					w = robots[i]->panel.getWidth();
+
+					robots[i]->panel.setParent(&panel);
+				}
+
+				// check if system is ready to move (all motors are homed)
+				check_for_system_ready();
+				is_initialized = true;
+			}
+		}
+
 		if (state == ControllerState::PLAY)
 			update();
 	}
@@ -195,9 +200,16 @@ void RobotController::setup_gui()
 	params_info.add(num_com_hubs.set("Num_Hubs", ""));
 	params_info.add(num_robots.set("Num_Motors", ""));
 
+	params_sync.setName("Synchronize_Params");
+	params_sync.add(sync_index.set("Synchronize_Index", 0, 0, 0));
+	params_sync.add(is_synchronized.set("Synchronize", false));
+	
+
 	check_status.addListener(this, &RobotController::check_for_system_ready);
+	is_synchronized.addListener(this, &RobotController::on_synchronize);
 
 	panel.add(params_info);
+	panel.add(params_sync);
 
 	// Minimize less important parameters
 	panel.getGroup("System_Info").minimize();
@@ -248,5 +260,57 @@ void RobotController::set_e_stop(bool val)
 	state = ControllerState::E_STOP;
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->set_e_stop(val);
+	}
+}
+
+void RobotController::key_pressed(int key)
+{
+	for (int i = 0; i < robots.size(); i++)
+		robots[i]->key_pressed(key);
+}
+
+/**
+ * @brief Makes all the robots match the motion parameters and position of the `sync_index` robot.
+ * 
+ * @param (bool)  val: sync or unsync
+ */
+void RobotController::on_synchronize(bool& val)
+{
+	if (val) {
+		// Make all the robot match the `sync_index` robot
+		//		if not homed, do nothing and print warning
+		//		if not enabled, enable
+		//		clear motion all acceptions
+		//		set all velocity/accel limits
+		//		if not in the same position, move to position of `sync_index` robot
+		auto vel = robots[sync_index]->vel_limit.get();
+		auto accel = robots[sync_index]->accel_limit.get();
+		auto pos = stoi(robots[sync_index]->info_position_mm.get());
+
+		for (int i = 0; i < robots.size(); i++) {
+			if (i != sync_index.get()) {
+				if (robots[i]->is_homed()) {
+					// Set all velocity/accel limits
+					robots[i]->vel_limit.set(vel);
+					robots[i]->accel_limit.set(accel);
+					robots[i]->move_to.set(pos);
+					robots[i]->btn_move_to.trigger();
+					// Collapse the GUI of all the other robots
+					robots[i]->panel.minimize();
+				}
+				else {
+					ofLogWarning("RobotController::on_synchronize") << "Cannot sync to Motor " << robots[i]->get_id() << " because it is not HOMED. Skipping until HOMED.";
+				}
+				
+			}
+		}
+	}
+	else {
+		for (int i = 0; i < robots.size(); i++) {
+			if (i != sync_index.get()) {
+				// Reopen the GUI of all the other robots
+				robots[i]->panel.maximize();
+			}
+		}
 	}
 }

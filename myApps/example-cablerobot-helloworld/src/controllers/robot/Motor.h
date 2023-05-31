@@ -41,5 +41,4 @@ public:
     bool is_homed();
 
     bool run_homing_routine(int _timeout=20);
-    void reset_home_position();
 };

@@ -4,6 +4,11 @@ CableRobot::CableRobot(SysManager& SysMgr, INode* node)
 {
 	motor_controller = new MotorControllers(SysMgr, node);
 	setup_gui();
+	motor_controller->get_motor()->set_motion_params(vel_limit.get(), accel_limit.get());
+	// referesh the gui
+	vel_limit.set(vel_limit.get());
+	accel_limit.set(accel_limit.get());
+
 	check_for_system_ready();
 }
 
@@ -37,11 +42,38 @@ void CableRobot::update()
 void CableRobot::draw()
 {
 	// update gui
-	position_mm.set(ofToString(count_to_mm(motor_controller->get_motor()->get_position(), true)));
+	info_position_mm.set(ofToString(count_to_mm(motor_controller->get_motor()->get_position(), true)));
+	info_position_cnt.set(ofToString(motor_controller->get_motor()->get_position()));
 }
 
 void CableRobot::shutdown()
 {
+}
+
+void CableRobot::key_pressed(int key)
+{
+	switch (key)
+	{
+	// minimize all gui groups, expect control and info
+	case '-':
+		panel.minimizeAll();
+		panel.getGroup("Control").maximize();
+		//panel.getGroup("Limits").minimize();
+		//panel.getGroup("Jogging").minimize();
+		//panel.getGroup("Move_To").minimize();
+		break;
+	// maximize all gui groups
+	case '+':
+		panel.maximizeAll();
+		break;
+	default:
+		break;
+	}
+}
+
+int CableRobot::get_id()
+{
+	return motor_controller->get_motor_id();
 }
 
 bool CableRobot::is_in_bounds_absolute(float target_pos_absolute)
@@ -97,7 +129,7 @@ void CableRobot::setup_gui()
 
 	int gui_width = 250;
 
-	panel.setup("Motor_" + ofToString(motor_controller->get_motor_id()));
+	panel.setup("Motor_" + ofToString(get_id()));
 	panel.setWidthElements(gui_width);
 	panel.setPosition(10, 15);
 	panel.add(status.set("Status", state_names[0]));
@@ -108,11 +140,19 @@ void CableRobot::setup_gui()
 	params_control.add(btn_run_homing.set("Run_Homing"));
 	params_control.add(btn_run_shutdown.set("Run_Shutdown"));
 
-	params_position.setName("Position");
-	params_position.add(position_mm.set("Position_(mm)", ""));
-	params_bounds.setName("Bounds");
-	params_bounds.add(bounds_min.set("Bounds_Min", 0, 0, 2000));
-	params_bounds.add(bounds_max.set("Bounds_Max", 2000, 0, 2000));
+	params_info.setName("Info");
+	params_info.add(info_position_mm.set("Position_(mm)", ""));
+	params_info.add(info_position_cnt.set("Position_(cnt)", ""));
+	string vel_lim = ofToString(motor_controller->get_motor()->get_velocity());
+	string accel_lim = ofToString(motor_controller->get_motor()->get_acceleration());
+	params_info.add(info_vel_limit.set("Vel_Limit_(RPM)", vel_lim));
+	params_info.add(info_accel_limit.set("Accel_Limit_(RPM/s)", accel_lim));
+
+	params_limits.setName("Limits");
+	params_limits.add(vel_limit.set("Vel_Limit_(RPM)", 30, 0, 300));
+	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 200, 0, 800));
+	params_limits.add(bounds_min.set("Bounds_Min", 0, 0, 2000));
+	params_limits.add(bounds_max.set("Bounds_Max", 2000, 0, 2000));
 
 	params_jog.setName("Jogging");
 	params_jog.add(jog_vel.set("Jog_Vel", 30, 0, 200));			// RPM
@@ -121,22 +161,33 @@ void CableRobot::setup_gui()
 	params_jog.add(btn_jog_up.set("Jog_Up"));
 	params_jog.add(btn_jog_down.set("Jog_Down"));
 
+	params_move_to.setName("Move_To");
+	int val = (bounds_min.get() + bounds_max.get()) / 2;
+	params_move_to.add(move_to.set("Move_to_Pos", val, bounds_min.get(), bounds_max.get()));
+	params_move_to.add(btn_move_to.set("Send_Move"));
+
 	
 	// bind GUI listeners
 	e_stop.addListener(this, &CableRobot::on_e_stop);
 	enable.addListener(this, &CableRobot::on_enable);
 	btn_run_homing.addListener(this, &CableRobot::on_run_homing);
 	btn_run_shutdown.addListener(this, &CableRobot::on_run_shutdown);
+	btn_move_to.addListener(this, &CableRobot::on_move_to);
 	btn_jog_up.addListener(this, &CableRobot::on_jog_up);
 	btn_jog_down.addListener(this, &CableRobot::on_jog_down);
+	vel_limit.addListener(this, &CableRobot::on_vel_limit_changed);
+	accel_limit.addListener(this, &CableRobot::on_accel_limit_changed);
+	bounds_max.addListener(this, &CableRobot::on_bounds_changed);
+	bounds_min.addListener(this, &CableRobot::on_bounds_changed);
 
 	panel.add(params_control);
-	panel.add(params_position);
-	panel.add(params_bounds);
+	panel.add(params_info);
+	panel.add(params_limits);
 	panel.add(params_jog);
+	panel.add(params_move_to);
 
 	// Minimize less important parameters
-	panel.getGroup("Bounds").minimize();
+	//panel.getGroup("Limits").minimize();
 }
 
 /**
@@ -208,20 +259,32 @@ bool CableRobot::run_homing_routine(int timeout)
  * streaming smooth trajectories.
  *
  * @param (int)  target_pos: target position in mm.
- * @param (bool)  absolute: target is abosulte or relative to current postion. 
+ * @param (bool)  absolute: target is abosulte or relative to current postion. TRUE by default.
  */
 void CableRobot::move_position(float target_pos, bool absolute)
 {
-	// convert from mm to motor counts
-	int count = mm_to_count(target_pos);
 	// send move command
 	if (absolute) {
-		if (is_in_bounds_absolute(target_pos))
-			motor_controller->get_motor()->move_position(count, true);
+		// Compensate for sign based on RIGHT - or LEFT - HANDED cable drum.
+		float pos = abs(target_pos);
+		pos = (drum.direction == Groove::LEFT_HANDED) ? pos * -1 : pos * 1;
+		// convert from mm to motor counts
+		int count = mm_to_count(pos);
+		if (is_homed()) {
+			if (is_in_bounds_absolute(target_pos))
+				motor_controller->get_motor()->move_position(count, true);
+			else
+				ofLogWarning("CableRobot::move_position") << "Move not sent: The target move would have been out of bounds.";
+		}
+		else {
+			ofLogWarning("CableRobot::move_position") << "Move not sent: You must HOME the robot before you move to an absolute position.";
+		}
 	}
 	else {
-		if (is_in_bounds_relative(target_pos))
-			motor_controller->get_motor()->move_position(count, false);
+		 ofLogWarning("CableRobot::move_position") << "Move not sent: Relative move not implemented yet.";
+		// @TODO
+		//if (is_in_bounds_relative(target_pos))
+		//	motor_controller->get_motor()->move_position(count, false);
 	}
 }
 
@@ -369,7 +432,7 @@ void CableRobot::on_jog_up()
 		else if (drum.direction == Groove::LEFT_HANDED) {
 		}
 		else {
-			ofLogWarning("CableRobot::on_jog_up") << "The CableDrum direction for Motor " << motor_controller->get_motor_id() << " is not configured.It must be configured before moving.";
+			ofLogWarning("CableRobot::on_jog_up") << "The CableDrum direction for Motor " << motor_controller->get_motor_id() << " is not configured. It must be configured before moving.";
 		}
 		// Check that we are not jogging out of bounds
 		bool send_move = true;
@@ -420,7 +483,7 @@ void CableRobot::jog_down(bool override) {
 			pos *= -1;
 		}
 		else {
-			ofLogWarning("CableRobot::on_jog_down") << "The CableDrum direction for Motor " << motor_controller->get_motor_id() << " is not configured.It must be configured before moving.";
+			ofLogWarning("CableRobot::on_jog_down") << "The CableDrum direction for Motor " << motor_controller->get_motor_id() << " is not configured. It must be configured before moving.";
 		}
 		// Check that we are not jogging out of bounds
 		bool send_move = true;
@@ -442,8 +505,8 @@ void CableRobot::jog_down(bool override) {
 			motor_controller->get_motor()->set_velocity(jog_vel.get());
 			motor_controller->get_motor()->set_acceleration(jog_accel.get());
 			// send the move
-			cout << "Moving Down: " << pos << endl;
 			motor_controller->get_motor()->move_position(pos, false);
+			cout << "Moving Down: " << pos << ", count: " << (motor_controller->get_motor()->get_position()) << endl;
 			// switch back to previous vel & accel
 			motor_controller->get_motor()->set_velocity(curr_vel_limit);
 			motor_controller->get_motor()->set_acceleration(curr_accel);
@@ -457,4 +520,39 @@ void CableRobot::jog_down(bool override) {
 void CableRobot::on_jog_down()
 {
 	jog_down();
+}
+
+void CableRobot::on_move_to()
+{
+	move_position(move_to.get());
+}
+
+void CableRobot::on_bounds_changed(float& val)
+{
+	move_to.setMin(bounds_min.get());
+	move_to.setMax(bounds_max.get());
+}
+
+/**
+ * @brief Updates the desired velocity limit.
+ * 
+ * @param (float)  val: desired velocity limit (RPM)
+ */
+void CableRobot::on_vel_limit_changed(float& val)
+{
+	motor_controller->get_motor()->set_velocity(val);	
+	// update the gui
+	info_vel_limit.set(ofToString(val));
+}
+
+/**
+ * @brief Updates the desired acceleration limit.
+ * 
+ * @param (float)  val: desired acceleration limit (RPM/s)
+ */
+void CableRobot::on_accel_limit_changed(float& val)
+{
+	motor_controller->get_motor()->set_acceleration(val);
+	// update the gui
+	info_accel_limit.set(ofToString(val));
 }

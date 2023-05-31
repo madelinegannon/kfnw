@@ -812,6 +812,10 @@ void ofApp::draw() {
 //
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key) {
+
+	// pass the key pressed to the robot controller
+	robots->key_pressed(key);
+
 //
 //	switch (key)
 //	{
