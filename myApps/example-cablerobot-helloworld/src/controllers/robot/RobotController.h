@@ -24,6 +24,7 @@ private:
     void update();
 
     void check_for_system_ready();
+    bool is_gui_setup = false;
     void setup_gui();
     void draw_gui();
 

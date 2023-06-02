@@ -136,10 +136,23 @@ void Motor::set_enabled(bool val)
 	}
 }
 
-int Motor::get_position()
+/**
+ * @brief Returns either the target or actual motor position (in counts).
+ * 
+ * @param (bool)  use_target: returns the target position if true. True by default.
+ * 
+ * @return (int) motor position (in counts) 
+ */
+int Motor::get_position(bool use_target)
 {
-	m_node->Motion.PosnCommanded.Refresh();
-	return int64_t(m_node->Motion.PosnCommanded.Value());;
+	if (use_target) {
+		m_node->Motion.PosnCommanded.Refresh();
+		return int64_t(m_node->Motion.PosnCommanded.Value());
+	}
+	else {
+		m_node->Motion.PosnMeasured.Refresh();
+		return int64_t(m_node->Motion.PosnMeasured.Value());
+	}
 }
 
 /**

@@ -22,7 +22,9 @@ private:
 
     bool is_in_bounds_absolute(float target_pos_absolute);
     bool is_in_bounds_relative(float target_pos_relative);
+    bool is_in_bounds(float target_pos, bool absolute);
 
+    int get_rotation_direction();
 
     ofNode position_base;
     ofNode position_target;
@@ -34,10 +36,11 @@ private:
 
     void check_for_system_ready();
     void setup_gui();
+    bool shutdown(int timeout=20);
 
     float mm_per_count;
-    float count_to_mm(int val, bool use_abs=false);
-    int mm_to_count(float val, bool use_abs = false);
+    float count_to_mm(int val, bool use_unsigned = false);
+    int mm_to_count(float val, bool use_unsigned = false);
 
     enum RobotState {
         NOT_HOMED,
@@ -61,7 +64,6 @@ public:
 
     void update();
     void draw();
-    void shutdown();
     void key_pressed(int key);
     int get_id();
 
@@ -71,6 +73,11 @@ public:
         float length, 
         int turns
     );
+    float get_position_target();
+    float get_position_actual();
+    vector<float> get_motion_parameters();
+    vector<float> get_jogging_parameters();
+
     void set_motion_parameters(float velocity_max, float accel_max, float position_min, float position_max);
     void set_velocity_max(float velocity_max);
     void set_accel_max(float accel_max);

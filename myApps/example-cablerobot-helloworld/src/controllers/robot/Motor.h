@@ -26,7 +26,7 @@ public:
     void set_e_stop(bool val);
     void set_enabled(bool val);
 
-    int get_position();
+    int get_position(bool use_target=true);
 
     float get_velocity();
     float get_velocity_actual();

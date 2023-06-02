@@ -128,9 +128,14 @@ void RobotController::shutdown()
 
 void RobotController::threadedFunction()
 {
+	
 	while (isThreadRunning()) {
 		if (!is_initialized) {
-			setup_gui();
+			
+			// run once
+			if (!is_gui_setup)
+				setup_gui();
+
 			// Initialize the CPM System Manager
 			// Create one CableRobot per detected motor
 			if (initialize()) {
@@ -146,10 +151,19 @@ void RobotController::threadedFunction()
 
 					robots[i]->panel.setParent(&panel);
 				}
-
 				// check if system is ready to move (all motors are homed)
 				check_for_system_ready();
 				is_initialized = true;
+			}
+			// add a delay before trying to initialize again
+			else {
+				float timer = ofGetElapsedTimeMillis();
+				float delay = 5;
+				ofLogWarning("RobotController::threadedFunction") << "initialize() FAILED. Check that the motors are powered and connected to PC.\n\tRETRYING " << delay << " SECONDS.\n";
+				while (ofGetElapsedTimeMillis() < timer + (delay * 1000))
+				{
+					// hold the thread for 5 seconds
+				}
 			}
 		}
 
@@ -213,6 +227,8 @@ void RobotController::setup_gui()
 
 	// Minimize less important parameters
 	panel.getGroup("System_Info").minimize();
+
+	is_gui_setup = true;
 }
 
 void RobotController::draw_gui()
@@ -283,25 +299,41 @@ void RobotController::on_synchronize(bool& val)
 		//		clear motion all acceptions
 		//		set all velocity/accel limits
 		//		if not in the same position, move to position of `sync_index` robot
-		auto vel = robots[sync_index]->vel_limit.get();
-		auto accel = robots[sync_index]->accel_limit.get();
-		auto pos = stoi(robots[sync_index]->info_position_mm.get());
+		int index = sync_index.get();
+		vector<float> motion_params = robots[index]->get_motion_parameters();
+		float vel = motion_params[0];
+		float accel = motion_params[1];
+		float bounds_min = motion_params[2];
+		float bounds_max = motion_params[3];
+		vector<float> jogging_params = robots[index]->get_jogging_parameters();
+		float jog_vel = jogging_params[0];
+		float jog_accel = jogging_params[1];
+		float jog_dist = jogging_params[2];
+		float pos = robots[index]->get_position_actual();
 
 		for (int i = 0; i < robots.size(); i++) {
-			if (i != sync_index.get()) {
+			if (i != index) {
 				if (robots[i]->is_homed()) {
-					// Set all velocity/accel limits
+
+					// Set all velocity/accel/bound limits
 					robots[i]->vel_limit.set(vel);
 					robots[i]->accel_limit.set(accel);
+					robots[i]->bounds_min.set(bounds_min);
+					robots[i]->bounds_max.set(bounds_max);
+					// Set all jogging values
+					robots[i]->jog_vel.set(jog_vel);
+					robots[i]->jog_accel.set(jog_accel);
+					robots[i]->jog_dist.set(jog_dist);
+					// move to the same position
 					robots[i]->move_to.set(pos);
 					robots[i]->btn_move_to.trigger();
+
 					// Collapse the GUI of all the other robots
 					robots[i]->panel.minimize();
 				}
 				else {
 					ofLogWarning("RobotController::on_synchronize") << "Cannot sync to Motor " << robots[i]->get_id() << " because it is not HOMED. Skipping until HOMED.";
-				}
-				
+				}				
 			}
 		}
 	}

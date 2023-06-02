@@ -26,6 +26,61 @@ void CableRobot::configure(glm::vec3 position, Groove direction, float diameter_
 	mm_per_count = drum.circumference / step_resolution;
 }
 
+float CableRobot::get_position_target()
+{
+	return count_to_mm(motor_controller->get_motor()->get_position(), true);
+}
+
+float CableRobot::get_position_actual()
+{
+	return count_to_mm(motor_controller->get_motor()->get_position(false), true);
+}
+
+/**
+ * @brief Returns the main motion parameters for the robot.
+ * 
+ * @return (vector<float>)  params: { vel_limit, accel_limit, bounds_min, bounds_max }
+ */
+vector<float> CableRobot::get_motion_parameters()
+{
+	vector<float> params;
+	params.push_back(vel_limit.get());
+	params.push_back(accel_limit.get());
+	params.push_back(bounds_min.get());
+	params.push_back(bounds_max.get());
+	return params;
+}
+
+/**
+ * @brief Returns the main motion parameters for the robot.
+ *
+ * @return (vector<float>)  params: { jogging_vel_limit, jogging_accel_limit, jogging_distance }
+ */
+vector<float> CableRobot::get_jogging_parameters()
+{
+	vector<float> params;
+	params.push_back(jog_vel.get());
+	params.push_back(jog_accel.get());
+	params.push_back(jog_dist.get());
+	return params;
+}
+
+/**
+ * @brief Sets the main motion parameters for the robot.
+ * 
+ * @param (float)  velocity_max: velocity limit (RPM)
+ * @param (float)  accel_max: acceleration limit (RPM/s)
+ * @param (float)  position_min: minimum position bounds
+ * @param (float)  position_max: maximum position bounds
+ */
+void CableRobot::set_motion_parameters(float velocity_max, float accel_max, float position_min, float position_max)
+{
+	vel_limit.set(velocity_max);
+	accel_limit.set(accel_max);
+	bounds_min.set(position_min);
+	bounds_max.set(position_max);
+}
+
 void CableRobot::set_accel_max(float accel_max)
 {
 }
@@ -42,25 +97,56 @@ void CableRobot::update()
 void CableRobot::draw()
 {
 	// update gui
-	info_position_mm.set(ofToString(count_to_mm(motor_controller->get_motor()->get_position(), true)));
-	info_position_cnt.set(ofToString(motor_controller->get_motor()->get_position()));
+	info_position_mm.set(ofToString(get_position_actual()));
+	info_position_cnt.set(ofToString(motor_controller->get_motor()->get_position(false)));	// for debugging
 }
 
-void CableRobot::shutdown()
+bool CableRobot::shutdown(int timeout)
 {
+	ofLogNotice("CableRobot::on_run_shutdown") << "Shutting Down CableRobot " << motor_controller->get_motor_id();
+	jog_vel.set(50);
+	jog_accel.set(200);
+	jog_dist.set(bounds_max.get());
+	jog_down();
+
+	auto diff = position_shutdown - bounds_max.get();
+	jog_vel.set(10);
+	jog_accel.set(50);
+	jog_dist.set(diff);
+	jog_down(true);
+
+	float timer = ofGetElapsedTimeMillis();
+	bool shutting_down = true;
+	while (shutting_down) {
+		// check if we've timed out
+		if (ofGetElapsedTimeMillis() > timer + (timeout * 1000)) {
+			ofLogWarning("CableRobot::shutdown") << "CableRobot " << motor_controller->get_motor_id() << " did not finish shutting down. Timed out after " << timeout << " seconds.";
+			return false;
+		}
+		auto pos = count_to_mm(motor_controller->get_motor()->get_position(), true);
+		if (position_shutdown - pos < 1) {
+			shutting_down = false;
+		}
+	}
+	// wait a brief moment before disabling the motor
+	float start_time = ofGetElapsedTimeMillis();
+	float delay = 1500;
+	while (ofGetElapsedTimeMillis() < start_time + delay)
+	{
+	}
+	// disbale the motor and update the GUI
+	enable.set(shutting_down);
+	return true;
 }
 
 void CableRobot::key_pressed(int key)
 {
 	switch (key)
 	{
-	// minimize all gui groups, expect control and info
+	// minimize all gui groups, expect control
 	case '-':
 		panel.minimizeAll();
 		panel.getGroup("Control").maximize();
-		//panel.getGroup("Limits").minimize();
-		//panel.getGroup("Jogging").minimize();
-		//panel.getGroup("Move_To").minimize();
 		break;
 	// maximize all gui groups
 	case '+':
@@ -76,22 +162,71 @@ int CableRobot::get_id()
 	return motor_controller->get_motor_id();
 }
 
+/**
+ * @brief Returns whether the target position is in bounds based on absolute coordinates.
+ * 
+ * @param (float)  target_pos_absolute: target position in absolute coordinates.
+ * @return (bool)  
+ */
 bool CableRobot::is_in_bounds_absolute(float target_pos_absolute)
 {
 	return target_pos_absolute >= bounds_min.get() && target_pos_absolute <= bounds_max.get();
 }
 
+/**
+ * @brief Returns whether the target position would be in bounds based on a relative move.
+ * 
+ * @param (float)  target_pos_relative: (-) for relative move UP and (+) for relative move DOWN
+ * @return (bool)  
+ */
 bool CableRobot::is_in_bounds_relative(float target_pos_relative)
 {
-	int curr_pos = count_to_mm(motor_controller->get_motor()->get_position());
-	// Move relative is UP
+	int curr_pos = count_to_mm(motor_controller->get_motor()->get_position(), true);
+	// (-) relative move is UP
 	if (target_pos_relative < 0) {
-		return curr_pos - target_pos_relative >= bounds_min.get();
+		return curr_pos - abs(target_pos_relative) >= bounds_min.get();
 	}
-	// Move relative is DOWN
+	// (+) relative move is DOWN
 	else {
-		return curr_pos + target_pos_relative <= bounds_max.get();
+		return curr_pos + abs(target_pos_relative) <= bounds_max.get();
 	}
+}
+
+/**
+ * @brief Returns whether the target position would be in bounds.
+ * Use (-) for relative move UP and (+) for relative move DOWN.
+ *
+ * @param (float)  target_pos: target position in absolute or relative coordinates.
+ * @param (bool) is_aboslute: target_pos is in absolute or relative coordinates
+ * @return (bool)
+ */
+bool CableRobot::is_in_bounds(float target_pos, bool is_absolute)
+{
+	if (is_absolute) {
+		return target_pos >= bounds_min.get() && target_pos <= bounds_max.get();
+	}
+	else {
+		int curr_pos = count_to_mm(motor_controller->get_motor()->get_position(), true);
+		// (-) relative move is UP
+		if (target_pos < 0) {
+			return curr_pos - abs(target_pos) >= bounds_min.get();
+		}
+		// (+) relative move is DOWN
+		else {
+			return curr_pos + abs(target_pos) <= bounds_max.get();
+		}
+	}
+}
+
+/**
+ * @brief Returns the sign for moving the motor based on the cable drum's groove direction.
+ *  
+ * A homed, left-handed drum operates in negative rotation space.
+ * @return (int)  -/+ 1 depending on configuration
+ */
+int CableRobot::get_rotation_direction()
+{
+	return drum.direction == Groove::LEFT_HANDED ? -1 : 1;
 }
 
 /**
@@ -194,11 +329,13 @@ void CableRobot::setup_gui()
  * @brief Converts from motor position (count) to linear distance (mm).
  *
  * @param (int)  val: motor position (in step counts)
+ * @param (bool) use_unsigned: returns abs(val) if true. False by default.
+ * 
  * @return (float)  linear distance (in mm)
  */
-float CableRobot::count_to_mm(int val, bool use_abs)
+float CableRobot::count_to_mm(int val, bool use_unsigned)
 {
-	if(use_abs)
+	if(use_unsigned)
 		return abs(val) * mm_per_count;
 	return val * mm_per_count;
 }
@@ -207,11 +344,13 @@ float CableRobot::count_to_mm(int val, bool use_abs)
  * @brief Converts from linear distance (mm) to motor position.
  *
  * @param (float)  val:  linear distance (in mm)
+ * @param (bool) use_unsigned: returns abs(val) if true. False by default.
+ * 
  * @return (int) motor position (in step counts)
  */
-int CableRobot::mm_to_count(float val, bool use_abs)
+int CableRobot::mm_to_count(float val, bool use_unsigned)
 {
-	if (use_abs)
+	if (use_unsigned)
 		return abs(val) / mm_per_count;
 	return val / mm_per_count;
 }
@@ -251,28 +390,27 @@ bool CableRobot::run_homing_routine(int timeout)
 	return motor_controller->get_motor()->run_homing_routine(timeout);
 }
 /**
- * @brief Issues a position move command. This is a trapezoidal move,
- * meaning that the motor with accelerate, then decelerate and stop at 
- * the target position.
+ * @brief Issues a position move command: converts from mm to motor counts.
+ * 
+ * This is a trapezoidal move, meaning that the motor with accelerate, 
+ * then decelerate and stop at the target position.
  * 
  * NOTE: Use only for Point-to-Point / Waypoint moves. Use move_velocity for
  * streaming smooth trajectories.
  *
- * @param (int)  target_pos: target position in mm.
- * @param (bool)  absolute: target is abosulte or relative to current postion. TRUE by default.
+ * @param (int)  target_pos: target position (mm).
+ * @param (bool)  is_absolute: target is abosulte or relative to current postion. TRUE by default.
  */
-void CableRobot::move_position(float target_pos, bool absolute)
+void CableRobot::move_position(float target_pos, bool is_absolute)
 {
 	// send move command
-	if (absolute) {
-		// Compensate for sign based on RIGHT - or LEFT - HANDED cable drum.
-		float pos = abs(target_pos);
-		pos = (drum.direction == Groove::LEFT_HANDED) ? pos * -1 : pos * 1;
-		// convert from mm to motor counts
-		int count = mm_to_count(pos);
+	if (is_absolute) {
+		// convert from mm to motor counts and flip sign based on cable drum groove direction
+		int count = mm_to_count(abs(target_pos)) * get_rotation_direction();
 		if (is_homed()) {
-			if (is_in_bounds_absolute(target_pos))
+			if (is_in_bounds(target_pos, true)) {
 				motor_controller->get_motor()->move_position(count, true);
+			}
 			else
 				ofLogWarning("CableRobot::move_position") << "Move not sent: The target move would have been out of bounds.";
 		}
@@ -382,33 +520,8 @@ void CableRobot::on_run_homing()
  */
 void CableRobot::on_run_shutdown()
 {
-	ofLogNotice("CableRobot::on_run_shutdown") << "Shutting Down Motor " << motor_controller->get_motor_id();
-	jog_vel.set(50);
-	jog_accel.set(200);
-	jog_dist.set(bounds_max.get());
-	jog_down();
-
-	auto diff = position_shutdown - bounds_max.get();
-	jog_vel.set(10);
-	jog_accel.set(50);
-	jog_dist.set(diff);
-	jog_down(true);
-
-	bool shutting_down = true;
-	while (shutting_down) {
-		auto pos = count_to_mm(motor_controller->get_motor()->get_position(), true);
-		if (position_shutdown - pos < 1) {
-			shutting_down = false;
-		}
-	}
-	// wait a brief moment before disabling the motor
-	float start_time = ofGetElapsedTimeMillis();
-	float delay = 1500;
-	while (ofGetElapsedTimeMillis() < start_time + delay)
-	{
-	}
-	// disbale the motor and update the GUI
-	enable.set(shutting_down);
+	int timeout = 20;
+	shutdown(timeout);
 }
 
 /**
@@ -423,41 +536,27 @@ void CableRobot::on_jog_up()
 		ofLogWarning("CableRobot::on_jog_up") << "Enable Motor " << motor_controller->get_motor_id() << " before trying to jog.";
 	}
 	else {
-		// convert from distance to counts
-		int pos = mm_to_count(jog_dist);
-		// check the sign to see if up is + or - for jogging up
-		if (drum.direction == Groove::RIGHT_HANDED) {
-			pos *= -1;
-		}
-		else if (drum.direction == Groove::LEFT_HANDED) {
-		}
-		else {
-			ofLogWarning("CableRobot::on_jog_up") << "The CableDrum direction for Motor " << motor_controller->get_motor_id() << " is not configured. It must be configured before moving.";
-		}
-		// Check that we are not jogging out of bounds
-		bool send_move = true;
-		//int curr_pos = motor_controller->get_motor()->get_position();
-		//if (curr_pos + abs(pos) > mm_to_count(bounds_min, true)) {
-		//}
-		int curr_pos = abs(motor_controller->get_motor()->get_position());
-		if (curr_pos - abs(pos) < mm_to_count(bounds_min.get())) {
-			pos = mm_to_count(bounds_min.get());
-			pos = (drum.direction == Groove::LEFT_HANDED) ? pos * -1 : pos * 1;
-			ofLogWarning("CableRobot::on_jog_up") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_min: " << count_to_mm(pos);
-			motor_controller->get_motor()->move_position(pos, true);
-			send_move = false;
-		}
-		if (send_move) {
+		// check if the target jogging distance is in bounds
+		// (-) jog move is UP
+		bool in_bounds = is_in_bounds(jog_dist.get() * -1, false);	// multiply (jog_dist.get() * -1) to signal jog UP direction
+		if (in_bounds) {
+			// save the current vel and accel values
 			float curr_vel_limit = motor_controller->get_motor()->get_velocity();
 			float curr_accel = motor_controller->get_motor()->get_acceleration();
-			// use the jogging vel & accel
+			// switch to the jogging vel and accel values
 			motor_controller->get_motor()->set_velocity(jog_vel.get());
 			motor_controller->get_motor()->set_acceleration(jog_accel.get());
 			// send the move
-			motor_controller->get_motor()->move_position(pos, false);
-			// switch back to previous vel & accel
+			float curr_pos_mm = count_to_mm(motor_controller->get_motor()->get_position(), true);
+			float pos = curr_pos_mm - jog_dist.get();
+			move_position(pos, true);
+			// switch back to previous vel and accel values
 			motor_controller->get_motor()->set_velocity(curr_vel_limit);
 			motor_controller->get_motor()->set_acceleration(curr_accel);
+		}
+		else {
+			ofLogWarning("CableRobot::on_jog_up") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_min: " << bounds_min.get();
+			move_position(bounds_min.get(), true); 
 		}
 	}
 }
@@ -474,42 +573,34 @@ void CableRobot::jog_down(bool override) {
 		ofLogWarning("CableRobot::on_jog_down") << "Enable Motor " << motor_controller->get_motor_id() << " before trying to jog.";
 	}
 	else {
-		// convert from distance to counts
-		int pos = mm_to_count(jog_dist);
-		// check the drum groove direction to see if jogging is + or - for down
-		if (drum.direction == Groove::RIGHT_HANDED) {
-		}
-		else if (drum.direction == Groove::LEFT_HANDED) {
-			pos *= -1;
-		}
-		else {
-			ofLogWarning("CableRobot::on_jog_down") << "The CableDrum direction for Motor " << motor_controller->get_motor_id() << " is not configured. It must be configured before moving.";
-		}
-		// Check that we are not jogging out of bounds
-		bool send_move = true;
+		// check if the target jogging distance is in bounds
+		// (+) jog move is DOWN
+		bool in_bounds = is_in_bounds(jog_dist.get(), false);
+		float curr_pos_mm = count_to_mm(motor_controller->get_motor()->get_position(), true);
+		float pos = curr_pos_mm + jog_dist.get();
 		if (!override) {
-			int curr_pos = abs(motor_controller->get_motor()->get_position());
-			if (curr_pos + abs(pos) > mm_to_count(bounds_max.get())) {
-				pos = mm_to_count(bounds_max.get());
-				pos = (drum.direction == Groove::LEFT_HANDED) ? pos * -1 : pos * 1;
-				ofLogWarning("CableRobot::on_jog_down") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_max: " << count_to_mm(pos);
-				motor_controller->get_motor()->move_position(pos, true);
-				send_move = false;
+			if (in_bounds) {
+				// save the current vel and accel values
+				float curr_vel_limit = motor_controller->get_motor()->get_velocity();
+				float curr_accel = motor_controller->get_motor()->get_acceleration();
+				// switch to the jogging vel and accel values
+				motor_controller->get_motor()->set_velocity(jog_vel.get());
+				motor_controller->get_motor()->set_acceleration(jog_accel.get());
+				// send the move
+				move_position(pos, true);
+				// switch back to previous vel and accel values
+				motor_controller->get_motor()->set_velocity(curr_vel_limit);
+				motor_controller->get_motor()->set_acceleration(curr_accel);
+			}
+			else {
+				ofLogWarning("CableRobot::on_jog_down") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_max: " << bounds_max.get();
+				move_position(bounds_max.get(), true);
 			}
 		}
-		// If we're in bounds, send the jog move
-		if (send_move) {
-			float curr_vel_limit = motor_controller->get_motor()->get_velocity();
-			float curr_accel = motor_controller->get_motor()->get_acceleration();
-			// use the jogging vel & accel
-			motor_controller->get_motor()->set_velocity(jog_vel.get());
-			motor_controller->get_motor()->set_acceleration(jog_accel.get());
-			// send the move
-			motor_controller->get_motor()->move_position(pos, false);
-			cout << "Moving Down: " << pos << ", count: " << (motor_controller->get_motor()->get_position()) << endl;
-			// switch back to previous vel & accel
-			motor_controller->get_motor()->set_velocity(curr_vel_limit);
-			motor_controller->get_motor()->set_acceleration(curr_accel);
+		// override bounds_max for shutdown routine; send the move directly to the motor
+		else {
+			int count = mm_to_count(jog_dist.get()) * get_rotation_direction();	
+			motor_controller->get_motor()->move_position(count, false);
 		}
 	}
 }
@@ -522,9 +613,12 @@ void CableRobot::on_jog_down()
 	jog_down();
 }
 
+/**
+ * @brief GUI Callback to Move To absolute position.
+ */
 void CableRobot::on_move_to()
 {
-	move_position(move_to.get());
+	move_position(move_to.get(), true);
 }
 
 void CableRobot::on_bounds_changed(float& val)
