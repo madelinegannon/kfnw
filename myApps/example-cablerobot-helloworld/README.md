@@ -39,10 +39,10 @@ Each Motor has a UI that lets you individually control it:
 | Info          | _Read-only_ panel with position, velocity, and acceleration data   | 
 | Limits        | Changes the velocity, acceleration, and safety bounds   |
 | Jogging       | Custom speeds and distance to jog up or down   | 
-| Move To       | Trigger a move to an absolute position (in mm)   | 
+| Move To       | Trigger a position move to an absolute position (in mm)   | 
 
 ### Synchronizing Motors
-You can also synchronize all the motors to mimic a "lead" motor. 
+You can also synchronize all the motors to mimic a "lead" motor. When you synchronize, all the other motors are assigned the motion, limits, and jogging parameters of the lead motor. Then are then all moved to the same position of the lead motor.
 
 - Select the lead motor from the `Synchronize Index`
 - Press `Synchronize` to lock / unlock all motor parameters to the lead motor.
