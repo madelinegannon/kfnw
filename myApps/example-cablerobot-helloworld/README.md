@@ -5,7 +5,7 @@ This example provides a basic controller UI for cable-driven robot system using 
 > NOTE: The default values are tuned for a space with ~2m of vertical travel.
 
 ### Homing the Motors
-This system moves the robots with absolute coordinate, so you **must** home the motors every time you power them on. You only need to do this once per session (unless of course you loose power at any momemnt).
+This system moves the robots with absolute coordinate, so you **must** home the motors every time you power them on. You only need to do this once per session (unless of course you loose power at any moment).
 
 Use the `Run Homing` button to home each motor when you first startup. The GUI will be orange if a motor is not yet homed.
 
