@@ -40,6 +40,8 @@ private:
     ControllerState state = ControllerState::NOT_READY;
     string state_names[7] = { "NOT_READY", "READY", "PLAY", "PAUSE", "HOMING", "E_STOP", "SHUTDOWN"};
 
+    bool showGUI = true;
+
 public:
     RobotController() = default;
     RobotController(int count, float offset_x=0, float offset_y=0, float offset_z=0);
@@ -61,8 +63,6 @@ public:
     void play();
     void pause();
     void set_e_stop(bool val);
-
-    void add_robot_guis();
 
     void key_pressed(int key);
 

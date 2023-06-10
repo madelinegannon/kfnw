@@ -20,7 +20,7 @@ public:
     void initialize(Groove direction, float diameter_drum = 99.95, float length = 30, int turns = 30);
     void draw();
     Groove direction = Groove::NONE;
-
+    float get_diameter() { return diameter_drum; };
     
     float circumference = 0;
 };

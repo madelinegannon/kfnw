@@ -34,13 +34,16 @@ private:
     CableDrum drum;
     EndEffector ee;
 
-    void check_for_system_ready();
     void setup_gui();
     bool shutdown(int timeout=20);
 
     float mm_per_count;
     float count_to_mm(int val, bool use_unsigned = false);
     int mm_to_count(float val, bool use_unsigned = false);
+
+
+    float compute_target_velocity(float target_pos);
+    float target_velocity = 0.0;
 
     enum RobotState {
         NOT_HOMED,
@@ -73,24 +76,29 @@ public:
         float length, 
         int turns
     );
+    void check_for_system_ready();
+    bool is_ready();
+
     float get_position_target();
     float get_position_actual();
     vector<float> get_motion_parameters();
-    vector<float> get_jogging_parameters();
-
     void set_motion_parameters(float velocity_max, float accel_max, float position_min, float position_max);
-    void set_velocity_max(float velocity_max);
-    void set_accel_max(float accel_max);
-    void set_position_min(float position_min);
-    void set_position_max(float position_max);
+   
+    vector<float> get_jogging_parameters();
+    void set_jogging_parameters(float jogging_vel, float jogging_accel, float jogging_dist);
 
-    bool is_enabled();
+    void set_velocity_limit(float velocity_max);
+    void set_accel_limit(float accel_max);
+    void set_bounds(float min, float max);
+
+    bool is_estopped();
     bool is_homed();
+    bool is_enabled();
     bool run_homing_routine(int timeout=20);
 
     void move_position(float target_pos, bool absolute = true);
-    float compute_desired_velocity(float target_pos);
-    void move_velocity(float target_vel);
+    void move_velocity(float target_pos);
+
 
     void stop();
     void set_e_stop(bool val);
@@ -106,6 +114,7 @@ public:
     void on_jog_up();
     void on_jog_down();
     void on_move_to();
+    void on_move_to_vel();
     void on_bounds_changed(float& val);
     void on_vel_limit_changed(float& val);
     void on_accel_limit_changed(float& val);
@@ -127,6 +136,7 @@ public:
     ofParameterGroup params_move_to;
     ofParameter<float> move_to;
     ofParameter<void> btn_move_to;
+    ofParameter<void> btn_move_to_vel;
 
     ofParameterGroup params_limits;
     ofParameter<float> vel_limit;
@@ -152,5 +162,5 @@ public:
     ofColor mode_color_enabled;
     ofColor mode_color_disabled;
     ofColor mode_color_not_homed;
-    ofColor mode_color_eStop;
+    ofColor mode_color_estopped;
 };

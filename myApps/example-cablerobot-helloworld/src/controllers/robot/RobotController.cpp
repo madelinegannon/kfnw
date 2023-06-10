@@ -67,10 +67,10 @@ bool RobotController::initialize()
 					float length = 30;
 					int turns = 30;
 					Groove dir;
-					if (iNode % 2 == 0)
+					//if (iNode % 2 == 0)
 						dir = Groove::LEFT_HANDED;
-					else
-						dir = Groove::RIGHT_HANDED;
+					//else
+					//	dir = Groove::RIGHT_HANDED;
 					robots.back()->configure(pos, dir, diameter, length, turns);
 #ifdef AUTO_HOME
 					// if the motor is not homed,
@@ -80,7 +80,6 @@ bool RobotController::initialize()
 						robots.back()->run_homing_routine();
 					}
 #endif // AUTO_HOME
-
 				}
 			}
 			// update the gui
@@ -111,11 +110,14 @@ void RobotController::update()
 
 void RobotController::draw()
 {
-	panel.draw();
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->draw();
-		robots[i]->panel.draw();
+	if (showGUI) {
+		panel.draw();
+		for (int i = 0; i < robots.size(); i++) {
+			robots[i]->draw();
+			robots[i]->panel.draw();
+		}
 	}
+
 }
 
 void RobotController::shutdown()
@@ -167,7 +169,7 @@ void RobotController::threadedFunction()
 			}
 		}
 
-		if (state == ControllerState::PLAY)
+		//if (state == ControllerState::PLAY)
 			update();
 	}
 }
@@ -179,13 +181,16 @@ void RobotController::check_for_system_ready()
 {
 	// check if motors are already enabled
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->enable.set(robots[i]->is_enabled());
+		robots[i]->check_for_system_ready();
+		//robots[i]->enable.set(robots[i]->is_enabled());
 	}
 
 	// check if motors are homed and ready
 	bool is_ready = true;
 	for (int i = 0; i < robots.size(); i++) {
-		if (!robots[i]->is_homed()) {
+		if (robots[i]->status.get() == "ENABLED" || robots[i]->status.get() == "DISABLED") {
+		}
+		else {
 			is_ready = false;
 		}
 	}
@@ -283,6 +288,17 @@ void RobotController::key_pressed(int key)
 {
 	for (int i = 0; i < robots.size(); i++)
 		robots[i]->key_pressed(key);
+	
+	
+	switch (key)
+	{
+		case 'h':
+		case 'H':
+			showGUI = !showGUI;
+			break;
+	default:
+		break;
+	}
 }
 
 /**
@@ -314,17 +330,11 @@ void RobotController::on_synchronize(bool& val)
 		for (int i = 0; i < robots.size(); i++) {
 			if (i != index) {
 				if (robots[i]->is_homed()) {
-
-					// Set all velocity/accel/bound limits
-					robots[i]->vel_limit.set(vel);
-					robots[i]->accel_limit.set(accel);
-					robots[i]->bounds_min.set(bounds_min);
-					robots[i]->bounds_max.set(bounds_max);
-					// Set all jogging values
-					robots[i]->jog_vel.set(jog_vel);
-					robots[i]->jog_accel.set(jog_accel);
-					robots[i]->jog_dist.set(jog_dist);
-					// move to the same position
+					// Sync velocity/accel/bound limits
+					robots[i]->set_motion_parameters(vel, accel, bounds_min, bounds_max);
+					// Sync all jogging values
+					robots[i]->set_jogging_parameters(jog_vel, jog_accel, jog_dist);
+					// Move to the same position
 					robots[i]->move_to.set(pos);
 					robots[i]->btn_move_to.trigger();
 

@@ -10,6 +10,7 @@ Motor::Motor(SysManager& SysMgr, INode* node):
 	printf("          Serial #: %d\n", m_node->Info.SerialNumber.Value());
 	printf("             Model: %s\n", m_node->Info.Model.Value());
 	printf("        Resolution: %d\n", m_node->Info.PositioningResolution.Value());
+	printf("      Is E-Stopped: %s\n", is_estopped() ? "TRUE" : "FALSE");
 	printf("        Is Enabled: %s\n", is_enabled() ? "TRUE" : "FALSE");
 	printf("          Is Homed: %s\n", m_node->Motion.Homing.WasHomed() ? "TRUE":"FALSE");
 	printf("  Current Position: %d\n\n", get_position());
@@ -107,7 +108,7 @@ void Motor::set_e_stop(bool val)
 {
 	if (val) {
 		ofLogNotice("Motor::set_e_stop") << "Triggering E-Stop for Motor " << ofToString(m_node->Info.Ex.Addr()) << ".";
-		m_node->Motion.NodeStop(STOP_TYPE_ESTOP_RAMP);
+		m_node->Motion.NodeStop(STOP_TYPE_ESTOP_ABRUPT);
 	}
 	// Clear the E-Stop
 	else {
@@ -139,19 +140,19 @@ void Motor::set_enabled(bool val)
 /**
  * @brief Returns either the target or actual motor position (in counts).
  * 
- * @param (bool)  use_target: returns the target position if true. True by default.
+ * @param (bool)  get_actual_pos: returns the current actual position if true, the target position if false. True by default.
  * 
  * @return (int) motor position (in counts) 
  */
-int Motor::get_position(bool use_target)
+int Motor::get_position(bool get_actual_pos)
 {
-	if (use_target) {
-		m_node->Motion.PosnCommanded.Refresh();
-		return int64_t(m_node->Motion.PosnCommanded.Value());
-	}
-	else {
+	if (get_actual_pos) {
 		m_node->Motion.PosnMeasured.Refresh();
 		return int64_t(m_node->Motion.PosnMeasured.Value());
+	}
+	else {
+		m_node->Motion.PosnCommanded.Refresh();
+		return int64_t(m_node->Motion.PosnCommanded.Value());
 	}
 }
 
@@ -218,14 +219,23 @@ void Motor::move_position(int target_pos, bool is_absolute, bool add_dwell)
 }
 
 void Motor::move_velocity(float target_vel)
-{
-	m_node->Motion.MoveVelStart(target_vel);
+{		
+	// check that there is space in the motor's move buffer & then send vel command
+	m_node->Status.RT.Refresh();
+	if (m_node->Status.RT.Value().cpm.MoveBufAvail)
+		m_node->Motion.MoveVelStart(target_vel);
 }
 
 bool Motor::is_enabled()
 {
 	m_node->Status.RT.Refresh();
 	return m_node->Status.RT.Value().cpm.Enabled;
+}
+
+bool Motor::is_estopped()
+{
+	m_node->Status.Alerts.Refresh();
+	return m_node->Status.Alerts.Value().cpm.Common.EStopped;;
 }
 
 bool Motor::is_homed()
