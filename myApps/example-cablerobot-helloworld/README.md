@@ -1,6 +1,6 @@
-# CableRobot Hello World
+# CableRobot Controller Example
 
-This example provides a basic UI for cable-driven robot system using Clearpath motors, including preset routines for homing, jogging, and shutdown.
+This example provides a basic controller UI for cable-driven robot system using Clearpath motors, including preset routines for homing, jogging, and shutdown. Users can send position or velocity moves to the cable robot.
 
 > NOTE: The default values are tuned for a space with ~2m of vertical travel.
 
