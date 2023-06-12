@@ -13,11 +13,11 @@ The homing routine will timeout within `60 seconds` — if you need more time to
 
 > NOTE: the homing routine is also helpful for rewinding a spool.
 
-![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_homing.gif)
+![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-controller/assets/cablerobot_helloworld_homing.gif)
 
 Once all motors are homed, the `System Controller` will be ready to go.
 
-![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_is_homed.gif)
+![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-controller/assets/cablerobot_helloworld_is_homed.gif)
 
 ## Moving the Motors
 The motors can be moved by jogging up or down by a _relative distance_, or with a position or velocity move to go to an _absolute position_.
@@ -41,7 +41,7 @@ Velocity moves control the velocity over time of the motor, which means we can u
 ## Motor UI Panel
 Each Motor has a UI that lets you individually control it:
 
-![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_motor_gui.PNG)
+![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-controller/assets/cablerobot_helloworld_motor_gui.PNG)
 
 | Panel         | Description   | 
 | ------------- |:--------------| 
@@ -59,7 +59,7 @@ I built in a few keyboard shortcuts in anticipation of adding a lot motors to th
 - Use `+` / `-` to open / collapse all the Motor panels
 - Use `SPACEBAR` to play / pause the motors
 
-![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_gui.gif)
+![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-controller/assets/cablerobot_helloworld_gui.gif)
 
 ### Synchronizing Motors
 You can also synchronize all the motors to mimic a "lead" motor. When you synchronize, all the other motors are assigned the motion, limits, and jogging parameters of the lead motor. Then are then all moved to the same position of the lead motor.
@@ -67,7 +67,7 @@ You can also synchronize all the motors to mimic a "lead" motor. When you synchr
 - Select the lead motor from the `Synchronize Index`
 - Press `Synchronize` to lock / unlock all motor parameters to the lead motor.
 
-![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_synchronize.gif)
+![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-controller/assets/cablerobot_helloworld_synchronize.gif)
 
 #### To Do
 - Continue to relay all gui input from lead motor un-synchronized
