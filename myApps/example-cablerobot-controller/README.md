@@ -1,10 +1,10 @@
 # CableRobot Controller Example
 
-This example provides a basic controller UI for cable-driven robot system using Clearpath motors, including preset routines for homing, jogging, and shutdown. Users can send position or velocity moves to the cable robot.
+This example provides a basic controller & UI for cable-driven robot system using Clearpath motors. It lets you jog the motors up and down, and move to absolute positions using position and velocity moves. It also has routines for homing and shutdown.
 
 > NOTE: The default values are tuned for a space with ~2m of vertical travel.
 
-### Homing the Motors
+## Homing the Motors
 This system moves the robots with absolute coordinate, so you **must** home the motors every time you power them on. You only need to do this once per session (unless of course you loose power at any moment).
 
 Use the `Run Homing` button to home each motor when you first startup. The GUI will be orange if a motor is not yet homed.
@@ -19,15 +19,26 @@ Once all motors are homed, the `System Controller` will be ready to go.
 
 ![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_is_homed.gif)
 
-### UI Features
-I built in a few keyboard shortcuts in anticipation of adding a lot motors to the system. 
+## Moving the Motors
+The motors can be moved by jogging up or down by a _relative distance_, or with a position or velocity move to go to an _absolute position_.
 
-- Click the header of each panel to open / collapse.
-- Use `+` / `-` to open / collapse all the Motor panels
+### Position Moves
+Position moves are point-to-point, meaning that accelerate and decelerate to a complete stop before going to the next target.
+- Think of these as _waypoints_.
+- Use position moves when wanting to "teleport" to a position quickly.
+- Use position moves when wanting to move to a position accurately.
+- Do not use for streaming trajectories / interaction / motion generation. Use velocity moves instead.
 
-![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_gui.gif)
+### Velocity Moves
+Velocity moves control the velocity over time of the motor, which means we can use it to steer towards a moving target.
+- Think of these as _trajectories_.
+- Use velocity moves when wanting to execute a smooth trajectory, have a continuously changing target, and / or for interaction.
 
-### Motor UI Panel
+> NOTE: The velocity controller is currently less stable than the position controller.
+
+![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-controller/assets/cablerobot_velocity_move.gif)
+
+## Motor UI Panel
 Each Motor has a UI that lets you individually control it:
 
 ![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_motor_gui.PNG)
@@ -39,7 +50,16 @@ Each Motor has a UI that lets you individually control it:
 | Info          | _Read-only_ panel with position, velocity, and acceleration data   | 
 | Limits        | Changes the velocity, acceleration, and safety bounds   |
 | Jogging       | Custom speeds and distance to jog up or down   | 
-| Move To       | Trigger a position move to an absolute position (in mm)   | 
+| Move To       | Trigger a position or velocity move to an absolute position (in mm)   | 
+
+### UI Features
+I built in a few keyboard shortcuts in anticipation of adding a lot motors to the system. 
+
+- Click the header of each panel to open / collapse.
+- Use `+` / `-` to open / collapse all the Motor panels
+- Use `SPACEBAR` to play / pause the motors
+
+![image](https://github.com/madelinegannon/kfnw/blob/main/myApps/example-cablerobot-helloworld/assets/cablerobot_helloworld_gui.gif)
 
 ### Synchronizing Motors
 You can also synchronize all the motors to mimic a "lead" motor. When you synchronize, all the other motors are assigned the motion, limits, and jogging parameters of the lead motor. Then are then all moved to the same position of the lead motor.
