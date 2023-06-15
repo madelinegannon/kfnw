@@ -6,22 +6,21 @@ void ofApp::setup() {
 	ofLogToConsole();
 	ofSetCircleResolution(60);
 
-	cam.setUpAxis(glm::vec3(0, 0, 1));
-	on_print_camera_view();
-
 	setup_camera();
 
 	int count = 2;
-	int offset = 1500; // mm
+	int offset = 914.4; // mm
 	vector<glm::vec3> positions;
 	for (int i = 0; i < count; i++) {
 		positions.push_back(glm::vec3(offset * i, 0, 0));
 	}
 
-	// set the world coordinate system of the robots
+	// set the world coordinate system of the robots (flip to match screen coord axes)
 	origin.rotateAroundDeg(180, glm::vec3(1, 0, 0), glm::vec3(0, 0, 0));
 	origin.setGlobalPosition(500, 0, 0);
 	robots = new RobotController(positions, &origin);
+
+	
 
 }
 
@@ -142,9 +141,10 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 
 void ofApp::setup_camera()
 {
-	cam.setPosition(camera_perspective);
+	cam.setUpAxis(glm::vec3(0, 0, 1));
+	cam.setPosition(camera_top);
 	cam.setTarget(camera_target);
-	cam.setDistance(20000);
+	cam.setDistance(5000);
 	cam.setFarClip(30000);
 	cam.setNearClip(.0001);
 }

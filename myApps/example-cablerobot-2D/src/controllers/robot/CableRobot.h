@@ -4,6 +4,7 @@
 #include "ofxGui.h"
 #include "CableDrum.h"
 #include "MotorController.h"
+#include "ofxXmlSettings.h"
 
 #include "pubSysCls.h"
 
@@ -57,6 +58,8 @@ private:
     RobotState state = RobotState::NOT_HOMED;
     string state_names[5] = { "NOT_HOMED", "HOMING", "ENABLED", "DISABLED", "E_STOP"};
 
+    bool auto_home = false;
+
     enum MoveType {
         POS,
         VEL
@@ -66,6 +69,9 @@ public:
     CableRobot();
     CableRobot(SysManager& SysMgr, INode* node);
     CableRobot(glm::vec3 base);
+
+    void load_config_from_file(string filename="");
+    bool save_config_to_file(string filename="");
 
     void update();
     void draw();
@@ -93,6 +99,9 @@ public:
     void set_velocity_limit(float velocity_max);
     void set_accel_limit(float accel_max);
     void set_bounds(float min, float max);
+
+    ofNode get_tangent() { return tangent; }
+    ofNode* get_target() { return &target; }
 
     bool is_estopped();
     bool is_homed();

@@ -5,6 +5,7 @@
 #include "pubSysCls.h"
 #include "CableRobot.h"
 #include "ofxGizmo.h"
+#include "ofxXmlSettings.h"
 
 //#define AUTO_HOME     // Uncomment if you want the cable robots to home on startup
 
@@ -20,6 +21,7 @@ private:
 
     ofNode* origin;      // World reference frame 
     ofNode ee = ofNode();
+
     
     bool is_initialized = false;
     bool initialize();
@@ -28,6 +30,17 @@ private:
     void check_for_system_ready();
     bool is_gui_setup = false;
     void setup_gui();
+
+    enum Configuration {
+        ONE_D = 0,
+        TWO_D,
+        THREE_D
+    };
+    Configuration system_config = Configuration::TWO_D;
+
+    bool auto_home = false;
+    bool load_robots_from_file = true;
+    bool run_offline = false;
 
     enum ControllerState {
         NOT_READY = 0,
@@ -45,6 +58,7 @@ private:
     ofxGizmo gizmo_origin;
     ofxGizmo gizmo_ee_0;
     vector<ofxGizmo*> gizmos;
+    ofRectangle bounds;
 
     bool use_ee_target = true;
 
@@ -59,8 +73,11 @@ public:
     void draw_gui();
     void shutdown();
     void windowResized(int w, int h);
-
+    
     void threadedFunction();
+
+    void save_settings(string filename = "");
+    void load_settings(string filename = "");
 
     void play();
     void pause();
@@ -87,9 +104,11 @@ public:
     ofParameterGroup params_sync;
     ofParameter<int> sync_index;
     ofParameter<bool> is_synchronized;
+    ofParameter <float> ee_offset;
 
     // GUI Listeners
     void on_synchronize(bool& val);
+    void on_ee_offset_changed(float& val);
 
 
     ofColor mode_color_disabled;

@@ -22,8 +22,14 @@ public:
     void draw();
     Groove direction = Groove::NONE;
     float get_diameter() { return diameter_drum; };
+    void set_diameter(float val) { diameter_drum = val; }
 
     glm::vec3 get_tangent() { return tangent_pt; };
+    void set_tangent(glm::vec3 tangent) {
+        tangent_pt.x = tangent.x;
+        tangent_pt.y = tangent.y;
+        tangent_pt.z = tangent.z;
+    }
     
     float circumference = 0;
 };

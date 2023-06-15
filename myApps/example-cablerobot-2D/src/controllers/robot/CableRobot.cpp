@@ -24,6 +24,18 @@ void CableRobot::configure(ofNode* _origin, ofNode* _ee, glm::vec3 base, Groove 
 	this->base.setPosition(base);
 	drum.initialize(direction, diameter_drum, length, turns);
 
+	// HARD CODED
+	if (motor_controller->get_motor_id() == 0) {
+		int x = drum.get_tangent().x + 5;
+		int y = drum.get_tangent().y - 80;
+		drum.set_tangent(glm::vec3(x, y, 0));
+	}
+	else {
+		int x = drum.get_tangent().x - 10;
+		int y = drum.get_tangent().y - 90;
+		drum.set_tangent(glm::vec3(x, y, 0));
+	}
+
 	// define the linear length per motor step
 	float step_resolution = motor_controller->get_motor()->get_resolution();
 	mm_per_count = drum.circumference / step_resolution;
@@ -39,7 +51,7 @@ void CableRobot::configure(ofNode* _origin, ofNode* _ee, glm::vec3 base, Groove 
 	float dist_actual = get_position_actual();
 	actual.setPosition(0, -1 * dist_actual, 0);
 	target.setParent(*ee);
-	float x = this->base.getPosition().x + tangent.getPosition().x  - ee->getPosition().x;
+	float x = this->base.getPosition().x + tangent.getPosition().x - ee->getPosition().x;
 	target.setPosition(x, 0, ee->getPosition().z);
 }
 
@@ -112,7 +124,7 @@ void CableRobot::set_accel_limit(float accel_max)
 
 /**
  * @brief Set minimum and maximum travel bounds .
- * 
+ *
  * @param (float)  min: minimum bounds (in mm)
  * @param (float)  max: maximum bounds (in mm)
  */
@@ -122,24 +134,163 @@ void CableRobot::set_bounds(float min, float max)
 	bounds_max.set(max);
 }
 
+void CableRobot::load_config_from_file(string filename)
+{
+	ofxXmlSettings config;
+	int serial_number = int(motor_controller->get_motor()->get()->Info.SerialNumber.Value());
+	if (filename == "")
+		filename = "robot_config_" + ofToString(serial_number) + ".xml";
+
+	if (config.loadFile(filename)) {
+		// Check that the serial numbers match
+		int sn = config.getValue("config:serial_number", 0);
+		if (sn != serial_number) {
+			ofLogWarning("CableRobot::load_config_from_file") << "Cannot load config file: Wrong serial number. Loaded " << ofToString(sn) << ", but should be " << ofToString(serial_number);
+			return;
+		}
+
+		auto_home = config.getValue("config:auto_home", 0);
+
+		// kinematics
+		float x = config.getValue("config:kinematics:base:X", 0);
+		float y = config.getValue("config:kinematics:base:Y", 0);
+		float z = config.getValue("config:kinematics:base:Z", 0);
+		base.setPosition(x, y, z);
+
+		x = config.getValue("config:kinematics:tangent:X", 0);
+		y = config.getValue("config:kinematics:tangent:Y", 0);
+		z = config.getValue("config:kinematics:tangent:Z", 0);
+		tangent.setPosition(x, y, z);
+
+		x = config.getValue("config:kinematics:target:X", 0);
+		y = config.getValue("config:kinematics:target:Y", 0);
+		z = config.getValue("config:kinematics:target:Z", 0);
+		target.setPosition(x, y, z);
+
+		// limits
+		vel_limit.set(config.getValue("config:limits:vel_limit", 0));
+		accel_limit.set(config.getValue("config:limits:accel_limit", 0));
+		bounds_min.set(config.getValue("config:limits:bounds_min", 0));
+		bounds_max.set(config.getValue("config:limits:bounds_max", 0));
+		position_shutdown = config.getValue("config:limits:bounds_shutdown", 0);
+
+		// jogging
+		jog_vel.set(config.getValue("config:jogging:jog_vel", 0));
+		jog_accel.set(config.getValue("config:jogging:jog_accel", 0));
+
+		// cable drum
+		drum.direction = Groove(config.getValue("config:cable_drum:direction", 0));
+		drum.set_diameter(config.getValue("config:cable_drum:diameter_drum", 0));
+		x = config.getValue("config:cable_drum:tangent:X", 0);
+		y = config.getValue("config:kinematics:tangent:Y", 0);
+		z = config.getValue("config:kinematics:tangent:Z", 0);
+		drum.set_tangent(glm::vec3(x, y, z));
+	}
+	else {
+		ofLogWarning("CableRobot::load_config_from_file") << "No config file found at: /bin/data/" << filename;
+	}
+	
+}
+
+bool CableRobot::save_config_to_file(string filename)
+{
+	ofxXmlSettings config;
+	int serial_number = int(motor_controller->get_motor()->get()->Info.SerialNumber.Value());
+
+	// robot
+	config.addTag("config");
+	config.pushTag("config");
+
+	config.addValue("timestamp", ofGetTimestampString());
+	config.addValue("serial_number", serial_number);
+	config.addValue("auto_home", auto_home);
+
+	// kinematics
+	config.addTag("kinematics");
+	config.pushTag("kinematics");
+
+	config.addTag("base");
+	config.pushTag("base");	// store the local coordinates
+	config.addValue("X", base.getPosition().x);	
+	config.addValue("Y", base.getPosition().y);
+	config.addValue("Z", base.getPosition().z);
+	config.popTag();
+
+	config.addTag("tangent");
+	config.pushTag("tangent");	// store the local coordinates
+	config.addValue("X", tangent.getPosition().x);
+	config.addValue("Y", tangent.getPosition().y);
+	config.addValue("Z", tangent.getPosition().z);
+	config.popTag();
+
+	config.addTag("target");
+	config.pushTag("target");	// store the local coordinates
+	config.addValue("X", target.getPosition().x);
+	config.addValue("Y", target.getPosition().y);
+	config.addValue("Z", target.getPosition().z);
+	config.popTag();
+
+	config.popTag();
+
+	// limits
+	config.addTag("limits");
+	config.pushTag("limits");
+	config.addValue("vel_limit", vel_limit.get());
+	config.addValue("accel_limit", accel_limit.get());
+	config.addValue("bounds_min", bounds_min.get());
+	config.addValue("bounds_max", bounds_max.get());
+	config.addValue("bounds_shutdown", position_shutdown);
+	config.popTag();
+
+	// jogging
+	config.addTag("jogging");
+	config.pushTag("jogging");
+	config.addValue("jog_vel", jog_vel.get());
+	config.addValue("jog_accel", jog_accel.get());
+	config.popTag();
+
+	// cable drum
+	config.addTag("cable_drum");
+	config.pushTag("cable_drum");
+	config.addValue("direction", drum.direction);
+	config.addValue("diameter_drum", drum.get_diameter());
+	config.addValue("diameter_cable", 0.3048);
+	config.addValue("length", 30);
+	config.addValue("turns", 40);
+	config.addTag("tangent");
+	config.pushTag("tangent");
+	config.addValue("X", drum.get_tangent().x);
+	config.addValue("Y", drum.get_tangent().y);
+	config.addValue("Z", drum.get_tangent().z);
+	config.popTag();
+	config.popTag();
+
+	config.popTag();
+
+	if (filename == "")
+		filename = "robot_config_" + ofToString(serial_number) + ".xml";
+	
+	return config.saveFile(filename);
+}
+
 void CableRobot::update()
 {
 	if (move_type == MoveType::VEL) {
 
-		// get distance to target
 		if (tangent.getGlobalPosition().y - target.getGlobalPosition().y > 0) {
+			// get distance to target
 			float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
-			move_velocity(dist);
+			move_velocity(dist);	// always sending positive value
 		}
 		else {
 			stop();
-			cout << "CANNOT SEND MOVE: trying to send past home position" << endl;
+			ofLogWarning("CableRobot::update") << "Stopping CableRobot " << motor_controller->get_motor_id() << ": trying to send past home position." << endl;
 		}
 
 		//move_velocity(move_to.get());
-	}	
+	}
 
-	
+
 
 	// update the actual positions
 	float dist_actual = get_position_actual();
@@ -147,7 +298,7 @@ void CableRobot::update()
 }
 
 void CableRobot::draw()
-{	
+{
 	ofPushStyle();
 
 	ofSetLineWidth(2);
@@ -174,11 +325,33 @@ void CableRobot::draw()
 	ofSetColor(ofColor::orange, 200);
 	ofDrawEllipse(actual.getGlobalPosition(), 40, 40);
 
-	// draw distance
+	// draw projected actual
+	auto dist = get_position_actual();
+	auto tangent_to_target = target.getGlobalPosition() - tangent.getGlobalPosition();
+	auto tangent_to_actual_projected = glm::normalize(tangent_to_target) * dist;
+	ofSetColor(255);
+	ofDrawLine(tangent.getGlobalPosition(), tangent.getGlobalPosition() + tangent_to_actual_projected);
+	ofSetColor(ofColor::orange, 200);
+	ofDrawEllipse(tangent.getGlobalPosition() + tangent_to_actual_projected, 40, 40);
+	//cout << "TANGENT WORLD: " << ofToString(tangent.getGlobalPosition()) << ", LOCAL: " << ofToString(tangent.getPosition()) << endl;
+	//cout << "TARGET WORLD: " << ofToString(target.getGlobalPosition()) << ", LOCAL: " << ofToString(target.getPosition()) << endl;
+	//cout << "tangent_to_target: " << ofToString(tangent_to_target) << endl;
+	//cout << "tangent_to_actual_projected: " << ofToString(tangent_to_actual_projected) << endl << endl;
+
 	ofSetColor(60);
-	string msg = ofToString(glm::distance(tangent.getPosition(), actual.getPosition())) + " (mm)";
-	auto mid_pt = (tangent.getGlobalPosition() + actual.getGlobalPosition()) / 2.0;
-	ofDrawBitmapString(msg, mid_pt.x + 20, mid_pt.y, mid_pt.z);
+	// draw distance to target
+	string msg = ofToString(glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition())) + " (mm)";
+	auto pt = target.getGlobalPosition();
+	int offset = 50;
+	if (motor_controller->get_motor_id() % 2 == 0 ){
+		offset *= -5.5;
+	}
+	ofDrawBitmapString(msg, pt.x + offset, pt.y - 10, pt.z);
+
+	// draw distance to actual
+	msg = ofToString(glm::distance(tangent.getPosition(), actual.getPosition())) + " (mm)";
+	pt = (tangent.getGlobalPosition() + actual.getGlobalPosition()) / 2.0;
+	ofDrawBitmapString(msg, pt.x + offset, pt.y - 10, pt.z);
 
 	ofPopStyle();
 
@@ -401,7 +574,7 @@ void CableRobot::setup_gui()
 	params_limits.setName("Limits");
 	params_limits.add(vel_limit.set("Vel_Limit_(RPM)", 30, 0, 300));
 	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 200, 0, 1000));
-	params_limits.add(bounds_min.set("Bounds_Min", 0, 0, 2000));
+	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 2000));
 	params_limits.add(bounds_max.set("Bounds_Max", 2000, 0, 2000));
 
 	params_jog.setName("Jogging");
@@ -621,7 +794,7 @@ float CableRobot::compute_target_velocity(float target_pos)
 void CableRobot::move_velocity(float target_pos)
 {
 	if (!is_estopped() && is_enabled() && is_homed()) {
-		// compute target velocity
+		// check if in bounds & compute the target velocity
 		float target_vel = compute_target_velocity(target_pos);
 		motor_controller->get_motor()->move_velocity(target_vel);
 	}

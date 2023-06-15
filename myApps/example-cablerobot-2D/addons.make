@@ -2,3 +2,4 @@ ofxGizmo
 ofxGui
 ofxNetwork
 ofxOsc
+ofxXmlSettings

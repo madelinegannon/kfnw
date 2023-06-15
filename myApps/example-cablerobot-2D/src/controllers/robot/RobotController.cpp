@@ -8,6 +8,8 @@ RobotController::RobotController(vector<glm::vec3> bases, ofNode* _origin)
 {
 	this->bases = bases;
 	this->origin = _origin;
+	
+	load_settings();
 
 	gizmo_origin.setNode(*origin);
 	gizmo_origin.setDisplayScale(.33);
@@ -20,15 +22,71 @@ RobotController::RobotController(vector<glm::vec3> bases, ofNode* _origin)
 	gizmo_ee_0.setNode(ee);
 	gizmo_ee_0.setDisplayScale(.5);
 
-	gizmo_ee_0.setTranslationAxisMask(IGizmo::AXIS_Y);
+	//gizmo_ee_0.setTranslationAxisMask(IGizmo::AXIS_Y);
 	gizmo_ee_0.setRotationAxisMask(IGizmo::AXIS_Z);
 	gizmo_ee_0.setScaleAxisMask(IGizmo::AXIS_X);
 
 	// add to the gizmo list
 	gizmos.push_back(&gizmo_origin);
 	gizmos.push_back(&gizmo_ee_0);
+
 	
 	startThread();
+}
+
+void RobotController::save_settings(string filename)
+{
+	ofxXmlSettings config;
+	config.addTag("config");
+	config.pushTag("config");
+	config.addValue("timestamp", ofGetTimestampString());
+	config.addValue("run_offline", run_offline);
+	config.addValue("system_config", system_config);
+	config.addValue("auto_home", auto_home);
+	config.addValue("load_robots_from_file", load_robots_from_file);
+
+	config.addTag("origin");
+	config.pushTag("origin");
+	config.addValue("X", origin->getGlobalPosition().x);
+	config.addValue("Y", origin->getGlobalPosition().y);
+	config.addValue("Z", origin->getGlobalPosition().z);
+	config.addValue("QX", origin->getGlobalOrientation().x);
+	config.addValue("QY", origin->getGlobalOrientation().y);
+	config.addValue("QZ", origin->getGlobalOrientation().z);
+	config.addValue("QW", origin->getGlobalOrientation().w);
+	config.popTag();
+
+	config.popTag();
+
+	config.saveFile("settings.xml");
+}
+
+void RobotController::load_settings(string filename)
+{
+	ofxXmlSettings config;
+	if (filename == "")
+		filename = "settings.xml";
+
+	if (config.loadFile(filename)) {
+
+		run_offline = config.getValue("config:run_offline", 0);
+		system_config = Configuration(config.getValue("config:system_config", 0));
+		auto_home = config.getValue("config:auto_home", 0);
+		load_robots_from_file = config.getValue("config:load_robots_from_file", 0);
+
+		float x = config.getValue("config:origin:X", 0);
+		float y = config.getValue("config:origin:Y", 0);
+		float z = config.getValue("config:origin:Z", 0);
+		float qx = config.getValue("config:origin:QX", 0);
+		float qy = config.getValue("config:origin:QY", 0);
+		float qz = config.getValue("config:origin:QZ", 0);
+		float qw = config.getValue("config:origin:QW", 0);
+		origin->setGlobalPosition(x, y, z);
+		origin->setGlobalOrientation(glm::quat(qw, qx, qy, qz));
+	}
+	else {
+		ofLogWarning("CableRobot::load_settings") << "No settings file found at: /bin/data/" << filename;
+	}
 }
 
 /**
@@ -92,6 +150,7 @@ bool RobotController::initialize()
 					//else
 					//	dir = Groove::RIGHT_HANDED;
 					robots.back()->configure(origin, &ee, base, dir, diameter, length, turns);
+					robots.back()->load_config_from_file();
 
 #ifdef AUTO_HOME
 					// if the motor is not homed,
@@ -103,6 +162,13 @@ bool RobotController::initialize()
 #endif // AUTO_HOME
 				}
 			}
+
+			// create the 2D bounds
+			bounds.setHeight(-robots[0]->bounds_max);
+			float w = robots[1]->get_tangent().getGlobalPosition().x - robots[0]->get_tangent().getGlobalPosition().x;
+			bounds.setWidth(w + 0);
+			bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
+
 			// update the gui
 			num_robots.set(ofToString(robots.size()));
 			sync_index.setMax(robots.size() - 1);
@@ -119,6 +185,7 @@ bool RobotController::initialize()
 
 		return false;
 	}
+	
 	return true;
 }
 
@@ -131,10 +198,23 @@ void RobotController::update()
 	// update the gizmos
 	set_origin(gizmo_origin.getTranslation(), gizmo_origin.getRotation());
 	set_ee(gizmo_ee_0.getTranslation(), gizmo_ee_0.getRotation());
+	// update the 2D bounds posistion
+	bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
 }
 
 void RobotController::draw()
 {
+	// draw the 2D bounds
+	ofPushStyle();
+	ofColor color;
+	if (bounds.inside(gizmo_ee_0.getTranslation()))
+		color = ofColor::yellow;
+	else
+		color = ofColor::red;
+	ofSetColor(color, 10);
+	ofDrawRectangle(bounds.getPosition(), bounds.width, bounds.height);
+	ofPopStyle();
+
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->draw();
 	}
@@ -150,7 +230,8 @@ void RobotController::shutdown()
 
 void RobotController::windowResized(int w, int h)
 {
-	gizmo_origin.setViewDimensions(w, h);
+	for (auto gizmo : gizmos)
+		gizmo->setViewDimensions(w, h);
 }
 
 void RobotController::threadedFunction()
@@ -247,10 +328,12 @@ void RobotController::setup_gui()
 	params_sync.setName("Synchronize_Params");
 	params_sync.add(sync_index.set("Synchronize_Index", 0, 0, 0));
 	params_sync.add(is_synchronized.set("Synchronize", false));
+	params_sync.add(ee_offset.set("EE_Offset", 700, 0, 1000));
 	
 
 	check_status.addListener(this, &RobotController::check_for_system_ready);
 	is_synchronized.addListener(this, &RobotController::on_synchronize);
+	ee_offset.addListener(this, &RobotController::on_ee_offset_changed);
 
 	panel.add(params_info);
 	panel.add(params_sync);
@@ -432,4 +515,18 @@ void RobotController::on_synchronize(bool& val)
 			}
 		}
 	}
+}
+
+void RobotController::on_ee_offset_changed(float& val)
+{
+	float offset =  val;
+	robots[0]->get_target()->setPosition(-offset, 0, 0);
+	robots[1]->get_target()->setPosition(offset, 0, 0);
+	//for (int i = 0; i < robots.size(); i++) {
+	//	if (i == 0)
+	//		offset *= -1;
+	//	auto pos = ee.getPosition();
+	//	cout << "Robot " << i << " ee position: " << ofToString(robots[i]->get_target()->getPosition()) << ", and offset: " << offset << endl;
+	//	robots[i]->get_target()->setPosition(offset, 0, 0);
+	//}
 }

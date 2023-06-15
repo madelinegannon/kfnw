@@ -1,0 +1,16 @@
+<config>
+    <timestamp>2023-06-15-17-22-06-608</timestamp>
+    <run_offline>0</run_offline>
+    <system_config>1</system_config>
+    <auto_home>0</auto_home>
+    <load_robots_from_file>1</load_robots_from_file>
+    <origin>
+        <X>500.000000000</X>
+        <Y>0.000000000</Y>
+        <Z>0.000000000</Z>
+        <QX>0.000000000</QX>
+        <QY>0.000000000</QY>
+        <QZ>0.000000000</QZ>
+        <QW>1.000000000</QW>
+    </origin>
+</config>
