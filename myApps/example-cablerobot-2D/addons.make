@@ -1,0 +1,4 @@
+ofxGizmo
+ofxGui
+ofxNetwork
+ofxOsc
