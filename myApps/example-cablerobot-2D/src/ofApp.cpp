@@ -19,9 +19,6 @@ void ofApp::setup() {
 	origin.rotateAroundDeg(180, glm::vec3(1, 0, 0), glm::vec3(0, 0, 0));
 	origin.setGlobalPosition(500, 0, 0);
 	robots = new RobotController(positions, &origin);
-
-	
-
 }
 
 //--------------------------------------------------------------
@@ -56,9 +53,10 @@ void ofApp::draw()
 
 
 	// draw the robots
+	robots->draw();
+	// draw all the gizmos
 	for (auto gizmo : robots->get_gizmos())
 		gizmo->draw(cam);
-	robots->draw();
 
 	
 	cam.end();

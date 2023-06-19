@@ -4,6 +4,7 @@
 #include "ofxGui.h"
 #include "pubSysCls.h"
 #include "CableRobot.h"
+#include "CableRobot2D.h"
 #include "ofxGizmo.h"
 #include "ofxXmlSettings.h"
 
@@ -18,6 +19,8 @@ private:
     SysManager* myMgr;
     vector<CableRobot*> robots;
     vector<glm::vec3> bases;
+
+    vector<CableRobot2D*> robots_2D;
 
     ofNode* origin;      // World reference frame 
     ofNode ee = ofNode();
@@ -58,11 +61,13 @@ private:
     ofxGizmo gizmo_origin;
     ofxGizmo gizmo_ee_0;
     vector<ofxGizmo*> gizmos;
+    void update_gizmos();
+
     ofRectangle bounds;
 
     bool use_ee_target = true;
-
-    void move_synchronized();
+    
+    bool debugging = true;
 
 public:
     RobotController() = default;
@@ -76,8 +81,8 @@ public:
     
     void threadedFunction();
 
-    void save_settings(string filename = "");
-    void load_settings(string filename = "");
+    void save_settings(string filename = "settings.xml");
+    void load_settings(string filename = "settings.xml");
 
     void play();
     void pause();

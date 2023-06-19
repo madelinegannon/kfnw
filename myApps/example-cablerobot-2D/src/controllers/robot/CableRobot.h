@@ -2,9 +2,10 @@
 
 #include "ofMain.h"
 #include "ofxGui.h"
+#include "ofxXmlSettings.h"
+#include "ofxGizmo.h"
 #include "CableDrum.h"
 #include "MotorController.h"
-#include "ofxXmlSettings.h"
 
 #include "pubSysCls.h"
 
@@ -27,8 +28,8 @@ private:
     int get_rotation_direction();
 
     // Kinematics
-    ofNode* origin;     // parent node (in world coordinates)
-    ofNode* ee;         // parent ee node
+    ofNode* origin;     // external parent node (in world coordinates)
+    ofNode* ee;         // external parent ee node
     ofNode base;        // center of cable drum
     ofNode tangent;     // tangent point on the cable drum
     ofNode target;      // desired ee position
@@ -38,6 +39,8 @@ private:
     CableDrum drum;
 
     void setup_gui();
+    ofxGizmo gizmo_ee;
+
     bool shutdown(int timeout=20);
 
     float mm_per_count;
@@ -59,6 +62,7 @@ private:
     string state_names[5] = { "NOT_HOMED", "HOMING", "ENABLED", "DISABLED", "E_STOP"};
 
     bool auto_home = false;
+    bool debugging = true;
 
     enum MoveType {
         POS,
@@ -72,6 +76,10 @@ public:
 
     void load_config_from_file(string filename="");
     bool save_config_to_file(string filename="");
+
+    ofxGizmo* get_gizmo() { return &gizmo_ee; }
+    bool override_gizmo = false;
+    void update_gizmo();
 
     void update();
     void draw();
@@ -103,6 +111,9 @@ public:
     ofNode get_tangent() { return tangent; }
     ofNode* get_target() { return &target; }
 
+    ofNode get_base() { return base; }
+    void set_base_position(glm::vec3 pos) { base.setPosition(pos); }
+
     bool is_estopped();
     bool is_homed();
     bool is_enabled();
@@ -125,6 +136,7 @@ public:
     void on_run_shutdown();
     void on_jog_up();
     void on_jog_down();
+    void on_move_to_changed(float& val);
     void on_move_to();
     void on_move_to_vel();
     void on_bounds_changed(float& val);

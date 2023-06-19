@@ -7,6 +7,8 @@
 
 #include "controllers/robot/RobotController.h"
 
+#define DEBUG
+
 
 class ofApp : public ofBaseApp {
 

@@ -9,31 +9,37 @@ RobotController::RobotController(vector<glm::vec3> bases, ofNode* _origin)
 	this->bases = bases;
 	this->origin = _origin;
 	
-	load_settings();
+	//load_settings();
 
 	gizmo_origin.setNode(*origin);
 	gizmo_origin.setDisplayScale(.33);
 
-	this->ee.setParent(*origin);
-	auto mid_pt = (bases[0] + bases[1]) / 2.0 + origin->getGlobalPosition();
-	mid_pt.y -= 1000;
-	this->ee.setGlobalPosition(mid_pt);
+	//// move to CableRobot2D class
+	//this->ee.setParent(*origin);
+	//auto mid_pt = (bases[0] + bases[1]) / 2.0 + origin->getGlobalPosition();
+	//mid_pt.y -= 1000;
+	//this->ee.setGlobalPosition(mid_pt);
 
-	gizmo_ee_0.setNode(ee);
-	gizmo_ee_0.setDisplayScale(.5);
+	//gizmo_ee_0.setNode(ee);
+	//gizmo_ee_0.setDisplayScale(.5);
 
-	//gizmo_ee_0.setTranslationAxisMask(IGizmo::AXIS_Y);
-	gizmo_ee_0.setRotationAxisMask(IGizmo::AXIS_Z);
-	gizmo_ee_0.setScaleAxisMask(IGizmo::AXIS_X);
+	////gizmo_ee_0.setTranslationAxisMask(IGizmo::AXIS_Y);
+	//gizmo_ee_0.setRotationAxisMask(IGizmo::AXIS_Z);
+	//gizmo_ee_0.setScaleAxisMask(IGizmo::AXIS_X);
 
 	// add to the gizmo list
 	gizmos.push_back(&gizmo_origin);
-	gizmos.push_back(&gizmo_ee_0);
+	//gizmos.push_back(&gizmo_ee_0);
 
 	
 	startThread();
 }
 
+/**
+ * @brief Saves system settings to a file.
+ * 
+ * @param (string)  filename: file saved to local /bin/data folder (must end in .xml). Defaults to "settings.xml"
+ */
 void RobotController::save_settings(string filename)
 {
 	ofxXmlSettings config;
@@ -58,9 +64,14 @@ void RobotController::save_settings(string filename)
 
 	config.popTag();
 
-	config.saveFile("settings.xml");
+	config.saveFile(filename);
 }
 
+/**
+ * @brief Loads system settings from a file.
+ *
+ * @param (string)  filename: file must be in local /bin/data folder (must end in .xml). Defaults to "settings.xml"
+ */
 void RobotController::load_settings(string filename)
 {
 	ofxXmlSettings config;
@@ -140,17 +151,24 @@ bool RobotController::initialize()
 				// Create each cable robot, set its world position
 				for (size_t j = 0; j < myPort.NodeCount(); j++) {
 					robots.push_back(new CableRobot(*myMgr, &myPort.Nodes(j)));
-					auto base = bases[j];
-					float diameter = 100;
-					float length = 30;
-					int turns = 30;
-					Groove dir;
-					//if (j % 2 == 0)
-						dir = Groove::LEFT_HANDED;
-					//else
-					//	dir = Groove::RIGHT_HANDED;
-					robots.back()->configure(origin, &ee, base, dir, diameter, length, turns);
-					robots.back()->load_config_from_file();
+					
+					//if (load_robots_from_file)					// <-- CAUSING CRASH
+					//	robots.back()->load_config_from_file();
+					//else {
+						auto base = bases[j];
+						float diameter = 100;
+						float length = 30;
+						int turns = 30;
+						Groove dir;
+						//if (j % 2 == 0)
+							dir = Groove::LEFT_HANDED;
+						//else
+						//	dir = Groove::RIGHT_HANDED;
+						robots.back()->configure(origin, &ee, base, dir, diameter, length, turns);
+						if (system_config == Configuration::ONE_D) {
+							gizmos.push_back(robots.back()->get_gizmo());
+						}
+					//}
 
 #ifdef AUTO_HOME
 					// if the motor is not homed,
@@ -161,13 +179,20 @@ bool RobotController::initialize()
 					}
 #endif // AUTO_HOME
 				}
+
 			}
 
-			// create the 2D bounds
-			bounds.setHeight(-robots[0]->bounds_max);
-			float w = robots[1]->get_tangent().getGlobalPosition().x - robots[0]->get_tangent().getGlobalPosition().x;
-			bounds.setWidth(w + 0);
-			bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
+			if (system_config == Configuration::TWO_D && robots.size() % 2 == 0) {
+				for (int i = 0; i < robots.size(); i += 2) {
+					robots_2D.push_back(new CableRobot2D(robots[0], robots[1], origin, i));
+				}
+			}
+
+			//// create the 2D bounds
+			//bounds.setHeight(-robots[0]->bounds_max);
+			//float w = robots[1]->get_tangent().getGlobalPosition().x - robots[0]->get_tangent().getGlobalPosition().x;
+			//bounds.setWidth(w + 0);
+			//bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
 
 			// update the gui
 			num_robots.set(ofToString(robots.size()));
@@ -185,38 +210,43 @@ bool RobotController::initialize()
 
 		return false;
 	}
-	
+	cout << "LEAVING INTIALIZE robots.size(): " << robots.size() << endl;
 	return true;
 }
 
 void RobotController::update()
 {
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->update();
-	}
-
 	// update the gizmos
-	set_origin(gizmo_origin.getTranslation(), gizmo_origin.getRotation());
-	set_ee(gizmo_ee_0.getTranslation(), gizmo_ee_0.getRotation());
+	update_gizmos();
+	
 	// update the 2D bounds posistion
-	bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
+	//bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
+
+	if (system_config == Configuration::ONE_D) {
+		for (int i = 0; i < robots.size(); i++) {
+			robots[i]->update();
+		}
+	}
+	else if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++) {
+			robots_2D[i]->update();
+		}
+	}
+	
 }
 
 void RobotController::draw()
 {
-	// draw the 2D bounds
-	ofPushStyle();
-	ofColor color;
-	if (bounds.inside(gizmo_ee_0.getTranslation()))
-		color = ofColor::yellow;
-	else
-		color = ofColor::red;
-	ofSetColor(color, 10);
-	ofDrawRectangle(bounds.getPosition(), bounds.width, bounds.height);
-	ofPopStyle();
 
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->draw();
+	if (system_config == Configuration::ONE_D) {
+		for (int i = 0; i < robots.size(); i++) {
+			robots[i]->draw();
+		}
+	}
+	else if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++) {
+			robots_2D[i]->draw();
+		}
 	}
 }
 
@@ -248,16 +278,22 @@ void RobotController::threadedFunction()
 			// Create one CableRobot per detected motor
 			if (initialize()) {
 				// update each robot's gui
-				int x = panel.getPosition().x;
-				int y = panel.getPosition().y;
-				int w = panel.getWidth();
-				int padding = 5;
-				for (int i = 0; i < robots.size(); i++) {
-					robots[i]->panel.setPosition(x + w + padding, y);
-					x = robots[i]->panel.getPosition().x;
-					w = robots[i]->panel.getWidth();
-
-					robots[i]->panel.setParent(&panel);
+				if (system_config == Configuration::ONE_D) {
+					int x = panel.getPosition().x;
+					int y = panel.getPosition().y;
+					int w = panel.getWidth();
+					int padding = 5;
+					for (int i = 0; i < robots.size(); i++) {
+						robots[i]->panel.setPosition(x + w + padding, y);
+						x = robots[i]->panel.getPosition().x;
+						w = robots[i]->panel.getWidth();
+						robots[i]->panel.setParent(&panel);
+					}
+				}
+				else if (system_config == Configuration::TWO_D) {
+					for (int i = 0; i < robots_2D.size(); i++) {
+						robots_2D[i]->update_gui(&panel);
+					}
 				}
 				// check if system is ready to move (all motors are homed)
 				check_for_system_ready();
@@ -270,7 +306,7 @@ void RobotController::threadedFunction()
 				ofLogWarning("RobotController::threadedFunction") << "initialize() FAILED. Check that the motors are powered and connected to PC.\n\tRETRYING " << delay << " SECONDS.\n";
 				while (ofGetElapsedTimeMillis() < timer + (delay * 1000))
 				{
-					// hold the thread for 5 seconds
+					// ... hold the thread for 5 seconds
 				}
 			}
 		}
@@ -325,18 +361,18 @@ void RobotController::setup_gui()
 	params_info.add(num_com_hubs.set("Num_Hubs", ""));
 	params_info.add(num_robots.set("Num_Motors", ""));
 
-	params_sync.setName("Synchronize_Params");
-	params_sync.add(sync_index.set("Synchronize_Index", 0, 0, 0));
-	params_sync.add(is_synchronized.set("Synchronize", false));
-	params_sync.add(ee_offset.set("EE_Offset", 700, 0, 1000));
+	//params_sync.setName("Synchronize_Params");
+	//params_sync.add(sync_index.set("Synchronize_Index", 0, 0, 0));
+	//params_sync.add(is_synchronized.set("Synchronize", false));
+	//params_sync.add(ee_offset.set("EE_Offset", 700, 0, 1000));
 	
 
 	check_status.addListener(this, &RobotController::check_for_system_ready);
-	is_synchronized.addListener(this, &RobotController::on_synchronize);
-	ee_offset.addListener(this, &RobotController::on_ee_offset_changed);
+	//is_synchronized.addListener(this, &RobotController::on_synchronize);
+	//ee_offset.addListener(this, &RobotController::on_ee_offset_changed);
 
 	panel.add(params_info);
-	panel.add(params_sync);
+	//panel.add(params_sync);
 
 	// Minimize less important parameters
 	panel.getGroup("System_Info").minimize();
@@ -348,18 +384,23 @@ void RobotController::draw_gui()
 {
 	if (showGUI) {
 		panel.draw();
-		for (int i = 0; i < robots.size(); i++) {
-			robots[i]->panel.draw();
+		if (system_config == Configuration::ONE_D) {
+			for (int i = 0; i < robots.size(); i++) {
+				robots[i]->panel.draw();
+			}
 		}
+		else if (system_config == Configuration::TWO_D) {
+			for (int i = 0; i < robots_2D.size(); i++) {
+				int padding = 20;
+				int x = panel.getPosition().x + (i * panel.getWidth()) + (i * padding);
+				int y = panel.getPosition().y + panel.getHeight() + padding;
+				robots_2D[i]->panel.setPosition(x, y);
+				robots_2D[i]->draw_gui();
+			}
+		}			
 	}
 }
 
-
-void RobotController::move_synchronized()
-{
-
-
-}
 
 void RobotController::play()
 {
@@ -369,29 +410,40 @@ void RobotController::play()
 void RobotController::pause()
 {
 	state = ControllerState::PAUSE;
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->stop();
+	if (system_config == Configuration::ONE_D) {
+		for (int i = 0; i < robots.size(); i++) {
+			robots[i]->stop();
+		}
+	}
+	else if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++) {
+			robots_2D[i]->stop();
+		}
 	}
 }
 
 void RobotController::set_e_stop(bool val)
 {
 	state = ControllerState::E_STOP;
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->set_e_stop(val);
+	if (system_config == Configuration::ONE_D) {
+		for (int i = 0; i < robots.size(); i++) {
+			robots[i]->set_e_stop(val);
+		}
+	}
+	else if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++) {
+			robots_2D[i]->set_e_stop(val);
+		}
 	}
 }
 
 void RobotController::key_pressed(int key)
 {
-	key_pressed_gizmo(key);
-
-	for (int i = 0; i < robots.size(); i++)
-		robots[i]->key_pressed(key);
-	
-	
 	switch (key)
 	{
+		case '?':
+			debugging = !debugging;
+			break;
 		case 'h':
 		case 'H':
 			showGUI = !showGUI;
@@ -399,6 +451,17 @@ void RobotController::key_pressed(int key)
 	default:
 		break;
 	}
+
+	key_pressed_gizmo(key);
+
+	if (system_config == Configuration::ONE_D) {
+		for (int i = 0; i < robots.size(); i++)
+			robots[i]->key_pressed(key);
+	}
+	else if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++)
+			robots_2D[i]->key_pressed(key);
+	}	
 }
 
 void RobotController::key_pressed_gizmo(int key)
@@ -423,10 +486,10 @@ void RobotController::key_pressed_gizmo(int key)
 		break;
 	case '0':
 		// reset to the transform
-		for (auto gizmo : gizmos) {
-			gizmo->setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_MOVE);
-			gizmo->setMatrix(glm::mat4());
-		}
+		//for (auto gizmo : gizmos) {
+		//	gizmo->setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_MOVE);
+		//	gizmo->setMatrix(glm::mat4());
+		//}
 		break;
 	default:
 		break;
@@ -446,6 +509,28 @@ void RobotController::set_origin(glm::vec3 pos, glm::quat orient)
 {
 	origin->setGlobalPosition(pos);
 	origin->setGlobalOrientation(orient);
+}
+
+void RobotController::update_gizmos()
+{
+	// update the origin node to match the gizmo
+	origin->setGlobalPosition(gizmos[0]->getTranslation());
+	origin->setGlobalOrientation(gizmos[0]->getRotation());
+
+	// override ee gizmo transforms if we're moving the origin gizmo
+	bool val = gizmos[0]->isInteracting();
+	if (system_config == Configuration::ONE_D) {
+		for (int i = 0; i < robots.size(); i++) {
+			robots[i]->override_gizmo = val;
+			robots[i]->update_gizmo();
+		}
+	}
+	else if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++) {
+			robots_2D[i]->override_gizmo = val;
+			robots_2D[i]->update_gizmo();
+		}
+	}
 }
 
 void RobotController::set_ee(glm::vec3 pos, glm::quat orient)
@@ -468,65 +553,65 @@ void RobotController::set_ee(glm::vec3 pos, glm::quat orient)
  */
 void RobotController::on_synchronize(bool& val)
 {
-	if (val) {
-		// Make all the robot match the `sync_index` robot
-		//		if not homed, do nothing and print warning
-		//		if not enabled, enable
-		//		clear motion all acceptions
-		//		set all velocity/accel limits
-		//		if not in the same position, move to position of `sync_index` robot
-		int index = sync_index.get();
-		vector<float> motion_params = robots[index]->get_motion_parameters();
-		float vel = motion_params[0];
-		float accel = motion_params[1];
-		float bounds_min = motion_params[2];
-		float bounds_max = motion_params[3];
-		vector<float> jogging_params = robots[index]->get_jogging_parameters();
-		float jog_vel = jogging_params[0];
-		float jog_accel = jogging_params[1];
-		float jog_dist = jogging_params[2];
-		float pos = robots[index]->get_position_actual();
+	//if (val) {
+	//	// Make all the robot match the `sync_index` robot
+	//	//		if not homed, do nothing and print warning
+	//	//		if not enabled, enable
+	//	//		clear motion all acceptions
+	//	//		set all velocity/accel limits
+	//	//		if not in the same position, move to position of `sync_index` robot
+	//	int index = sync_index.get();
+	//	vector<float> motion_params = robots[index]->get_motion_parameters();
+	//	float vel = motion_params[0];
+	//	float accel = motion_params[1];
+	//	float bounds_min = motion_params[2];
+	//	float bounds_max = motion_params[3];
+	//	vector<float> jogging_params = robots[index]->get_jogging_parameters();
+	//	float jog_vel = jogging_params[0];
+	//	float jog_accel = jogging_params[1];
+	//	float jog_dist = jogging_params[2];
+	//	float pos = robots[index]->get_position_actual();
 
-		for (int i = 0; i < robots.size(); i++) {
-			if (i != index) {
-				if (robots[i]->is_homed()) {
-					// Sync velocity/accel/bound limits
-					robots[i]->set_motion_parameters(vel, accel, bounds_min, bounds_max);
-					// Sync all jogging values
-					robots[i]->set_jogging_parameters(jog_vel, jog_accel, jog_dist);
-					// Move to the same position
-					robots[i]->move_to.set(pos);
-					robots[i]->btn_move_to.trigger();
+	//	for (int i = 0; i < robots.size(); i++) {
+	//		if (i != index) {
+	//			if (robots[i]->is_homed()) {
+	//				// Sync velocity/accel/bound limits
+	//				robots[i]->set_motion_parameters(vel, accel, bounds_min, bounds_max);
+	//				// Sync all jogging values
+	//				robots[i]->set_jogging_parameters(jog_vel, jog_accel, jog_dist);
+	//				// Move to the same position
+	//				robots[i]->move_to.set(pos);
+	//				robots[i]->btn_move_to.trigger();
 
-					// Collapse the GUI of all the other robots
-					robots[i]->panel.minimize();
-				}
-				else {
-					ofLogWarning("RobotController::on_synchronize") << "Cannot sync to Motor " << robots[i]->get_id() << " because it is not HOMED. Skipping until HOMED.";
-				}				
-			}
-		}
-	}
-	else {
-		for (int i = 0; i < robots.size(); i++) {
-			if (i != sync_index.get()) {
-				// Reopen the GUI of all the other robots
-				robots[i]->panel.maximize();
-			}
-		}
-	}
-}
-
-void RobotController::on_ee_offset_changed(float& val)
-{
-	float offset =  val;
-	robots[0]->get_target()->setPosition(-offset, 0, 0);
-	robots[1]->get_target()->setPosition(offset, 0, 0);
-	//for (int i = 0; i < robots.size(); i++) {
-	//	if (i == 0)
-	//		offset *= -1;
-	//	auto pos = ee.getPosition();
-	//	cout << "Robot " << i << " ee position: " << ofToString(robots[i]->get_target()->getPosition()) << ", and offset: " << offset << endl;
-	//	robots[i]->get_target()->setPosition(offset, 0, 0);
+	//				// Collapse the GUI of all the other robots
+	//				robots[i]->panel.minimize();
+	//			}
+	//			else {
+	//				ofLogWarning("RobotController::on_synchronize") << "Cannot sync to Motor " << robots[i]->get_id() << " because it is not HOMED. Skipping until HOMED.";
+	//			}				
+	//		}
+	//	}
+	//}
+	//else {
+	//	for (int i = 0; i < robots.size(); i++) {
+	//		if (i != sync_index.get()) {
+	//			// Reopen the GUI of all the other robots
+	//			robots[i]->panel.maximize();
+	//		}
+	//	}
 	//}
 }
+
+//void RobotController::on_ee_offset_changed(float& val)
+//{
+//	float offset =  val;
+//	robots[0]->get_target()->setPosition(-offset, 0, 0);
+//	robots[1]->get_target()->setPosition(offset, 0, 0);
+//	//for (int i = 0; i < robots.size(); i++) {
+//	//	if (i == 0)
+//	//		offset *= -1;
+//	//	auto pos = ee.getPosition();
+//	//	cout << "Robot " << i << " ee position: " << ofToString(robots[i]->get_target()->getPosition()) << ", and offset: " << offset << endl;
+//	//	robots[i]->get_target()->setPosition(offset, 0, 0);
+//	//}
+//}

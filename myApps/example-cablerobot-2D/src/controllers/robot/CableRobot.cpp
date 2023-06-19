@@ -47,12 +47,28 @@ void CableRobot::configure(ofNode* _origin, ofNode* _ee, glm::vec3 base, Groove 
 	actual.setParent(tangent);
 	actual.setPosition(0, 0, 0);
 
-	// set the target position to the actual position
-	float dist_actual = get_position_actual();
-	actual.setPosition(0, -1 * dist_actual, 0);
-	target.setParent(*ee);
-	float x = this->base.getPosition().x + tangent.getPosition().x - ee->getPosition().x;
-	target.setPosition(x, 0, ee->getPosition().z);
+	// if the external ee node is empty, create a new one that is internal and add a gizmo
+	if (ee->getGlobalPosition() == glm::vec3() && ee->getGlobalOrientation() == glm::quat()) {
+		ee = new ofNode();
+		ee->setParent(tangent);
+		ee->setPosition(0, -1 * (bounds_max.get() - bounds_min.get()) / 2, 0);
+		target.setParent(*ee);
+
+		gizmo_ee.setNode(*ee);
+		gizmo_ee.setDisplayScale(.5);
+		gizmo_ee.setTranslationAxisMask(IGizmo::AXIS_Y);
+		gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
+	}
+	// otherwise, parent the target to the external ee
+	else {
+		// set the target position to the actual position
+		float dist_actual = get_position_actual();
+		actual.setPosition(0, -1 * dist_actual, 0);
+		target.setParent(*ee);
+		float x = this->base.getPosition().x + tangent.getPosition().x - ee->getPosition().x;
+		target.setPosition(x, 0, ee->getPosition().z);
+	}
+
 }
 
 float CableRobot::get_position_actual()
@@ -275,9 +291,25 @@ bool CableRobot::save_config_to_file(string filename)
 
 void CableRobot::update()
 {
-	if (move_type == MoveType::VEL) {
+	// check if we should be homing
+	if (state == RobotState::HOMING) {
+		// if we successfully homed, update the state and gui color
+		if (run_homing_routine(60)) {
+			bool _is_enabled = is_enabled();
+			state = _is_enabled ? RobotState::ENABLED : RobotState::DISABLED;
+			status.set(state_names[state]);
+			auto color = _is_enabled ? mode_color_enabled : mode_color_disabled;
+			panel.setBorderColor(color);
+		}
+		else {
+			state = RobotState::NOT_HOMED;
+			status.set(state_names[state]);
+			panel.setBorderColor(mode_color_not_homed);
+		}
+	}
 
-		if (tangent.getGlobalPosition().y - target.getGlobalPosition().y > 0) {
+	else if (move_type == MoveType::VEL) {
+		if (tangent.getGlobalPosition().y - target.getGlobalPosition().y > 0) {				// NOTE: this may not work for 2D
 			// get distance to target
 			float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
 			move_velocity(dist);	// always sending positive value
@@ -286,8 +318,6 @@ void CableRobot::update()
 			stop();
 			ofLogWarning("CableRobot::update") << "Stopping CableRobot " << motor_controller->get_motor_id() << ": trying to send past home position." << endl;
 		}
-
-		//move_velocity(move_to.get());
 	}
 
 
@@ -310,10 +340,19 @@ void CableRobot::draw()
 	tangent.draw();
 
 	// draw ghosted line between tangent and target & ee and target
-	ofSetLineWidth(1);
-	ofSetColor(120);
+	// show RED if the target is out of bounds
+	if (-1 * ee->getPosition().y > bounds_min.get() && 
+		-1 * ee->getPosition().y < bounds_max.get()) {
+		ofSetLineWidth(1);
+		ofSetColor(120);
+	}
+	else {
+		ofSetLineWidth(5);
+		ofSetColor(ofColor::red, 30);
+	}
 	ofDrawLine(tangent.getGlobalPosition(), target.getGlobalPosition());
 	ofDrawLine(ee->getGlobalPosition(), target.getGlobalPosition());
+	
 	ofFill();
 	ofSetColor(ofColor::red, 200);
 	ofDrawEllipse(target.getGlobalPosition(), 50, 50);
@@ -321,14 +360,22 @@ void CableRobot::draw()
 	// draw solid line between tangent and actual
 	ofSetLineWidth(1);
 	ofSetColor(255);
-	ofDrawLine(tangent.getGlobalPosition(), actual.getGlobalPosition());
-	ofSetColor(ofColor::orange, 200);
-	ofDrawEllipse(actual.getGlobalPosition(), 40, 40);
+
+	if (debugging) {
+		ofDrawLine(tangent.getGlobalPosition(), actual.getGlobalPosition());
+		ofSetColor(ofColor::orange, 200);
+		ofDrawEllipse(actual.getGlobalPosition(), 40, 40);
+	}
 
 	// draw projected actual
 	auto dist = get_position_actual();
-	auto tangent_to_target = target.getGlobalPosition() - tangent.getGlobalPosition();
+	glm::vec3 tangent_to_target;
+	if (tangent.getGlobalPosition().y < target.getGlobalPosition().y) 
+		tangent_to_target = tangent.getGlobalPosition() - target.getGlobalPosition();
+	else
+		tangent_to_target = target.getGlobalPosition() - tangent.getGlobalPosition();
 	auto tangent_to_actual_projected = glm::normalize(tangent_to_target) * dist;
+
 	ofSetColor(255);
 	ofDrawLine(tangent.getGlobalPosition(), tangent.getGlobalPosition() + tangent_to_actual_projected);
 	ofSetColor(ofColor::orange, 200);
@@ -359,6 +406,25 @@ void CableRobot::draw()
 	// update gui
 	info_position_mm.set(ofToString(get_position_actual()));
 	info_position_cnt.set(ofToString(motor_controller->get_motor()->get_position(false)));	// for debugging
+}
+
+void CableRobot::update_gizmo()
+{
+	if (override_gizmo) {
+		gizmo_ee.setNode(*ee);
+	}
+	else {
+		ee->setGlobalPosition(gizmo_ee.getTranslation());
+		ee->setGlobalOrientation(gizmo_ee.getRotation());
+		// update the gui
+		if (gizmo_ee.isInteracting()) {
+			float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
+			// don't go past the min bounds
+			if (dist < bounds_min.get())
+				dist = bounds_min.get();
+			move_to.set(dist);
+		}
+	}	
 }
 
 bool CableRobot::shutdown(int timeout)
@@ -419,6 +485,9 @@ void CableRobot::key_pressed(int key)
 	// maximize all gui groups
 	case '+':
 		panel.maximizeAll();
+		break;
+	case '?':
+		debugging = !debugging;
 		break;
 	default:
 		break;
@@ -596,6 +665,7 @@ void CableRobot::setup_gui()
 	btn_run_homing.addListener(this, &CableRobot::on_run_homing);
 	btn_run_shutdown.addListener(this, &CableRobot::on_run_shutdown);
 	btn_move_to.addListener(this, &CableRobot::on_move_to);
+	move_to.addListener(this, &CableRobot::on_move_to_changed);
 	btn_move_to_vel.addListener(this, &CableRobot::on_move_to_vel);
 	btn_jog_up.addListener(this, &CableRobot::on_jog_up);
 	btn_jog_down.addListener(this, &CableRobot::on_jog_down);
@@ -876,19 +946,20 @@ void CableRobot::on_run_homing()
 	state = RobotState::HOMING;
 	status.set(state_names[state]);
 
-	// if we successfully homed, update the state and gui color
-	if (run_homing_routine(60)) {
-		bool _is_enabled = is_enabled();
-		state = _is_enabled ? RobotState::ENABLED : RobotState::DISABLED;
-		status.set(state_names[state]);
-		auto color = _is_enabled ? mode_color_enabled : mode_color_disabled;
-		panel.setBorderColor(color);
-	}
-	else {
-		state = RobotState::NOT_HOMED;
-		status.set(state_names[state]);
-		panel.setBorderColor(mode_color_not_homed);
-	}
+	// ... moved to update()
+	//// if we successfully homed, update the state and gui color
+	//if (run_homing_routine(60)) {
+	//	bool _is_enabled = is_enabled();
+	//	state = _is_enabled ? RobotState::ENABLED : RobotState::DISABLED;
+	//	status.set(state_names[state]);
+	//	auto color = _is_enabled ? mode_color_enabled : mode_color_disabled;
+	//	panel.setBorderColor(color);
+	//}
+	//else {
+	//	state = RobotState::NOT_HOMED;
+	//	status.set(state_names[state]);
+	//	panel.setBorderColor(mode_color_not_homed);
+	//}
 }
 
 /**
@@ -990,6 +1061,13 @@ void CableRobot::jog_down(bool override) {
 void CableRobot::on_jog_down()
 {
 	jog_down();
+}
+
+void CableRobot::on_move_to_changed(float& val)
+{
+	glm::vec3 pos = glm::vec3(0, -1 * val, 0);
+	ee->setPosition(pos);
+	gizmo_ee.setNode(*ee);
 }
 
 /**
