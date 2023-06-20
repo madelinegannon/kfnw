@@ -252,9 +252,9 @@ bool Motor::run_homing_routine(int _timeout)
 	// set a timeout(ms) in case the node is unable to home
 	double timeout = m_sysMgr.TimeStampMsec() + (_timeout * 1000);	
 
+	cout << "Initiating homing. Timeout in " << _timeout << " seconds." << endl;
 	m_node->Motion.Homing.Initiate();
 	while (!m_node->Motion.Homing.WasHomed()) {
-		cout << ofToString(m_sysMgr.TimeStampMsec()) << endl;
 		if (m_sysMgr.TimeStampMsec() > timeout) {
 			printf("Node did not complete homing:  \n\t -Ensure Homing settings have been defined through ClearView. \n\t -Check for alerts/Shutdowns \n\t -Ensure timeout is longer than the longest possible homing move.\n");
 			return false;

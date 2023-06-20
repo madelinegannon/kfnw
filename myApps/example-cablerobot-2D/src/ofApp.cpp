@@ -156,7 +156,7 @@ void ofApp::key_pressed_camera(int key)
 		break;
 	case '1':
 		// TOP
-		on_set_camera_view(camera_top, camera_target, 3000);
+		on_set_camera_view(camera_top, camera_target, 2250);
 		break;
 	case '2': 
 		// SIDE

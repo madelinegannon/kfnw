@@ -23,8 +23,7 @@ private:
     vector<CableRobot2D*> robots_2D;
 
     ofNode* origin;      // World reference frame 
-    ofNode ee = ofNode();
-
+    ofNode ee;
     
     bool is_initialized = false;
     bool initialize();
@@ -95,7 +94,6 @@ public:
     bool disable_camera();
     void set_origin(glm::vec3 pos, glm::quat orient=glm::quat(0,0,0,1));
     void set_ee(glm::vec3 pos, glm::quat orient = glm::quat(0, 0, 0, 1));
-
 
     ofxPanel panel;
     ofParameter<string> status;

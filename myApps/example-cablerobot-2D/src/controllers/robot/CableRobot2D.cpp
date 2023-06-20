@@ -1,6 +1,6 @@
 #include "CableRobot2D.h"
 
-CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, int id)
+CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, glm::vec3 base_top_left, glm::vec3 base_top_right,int id)
 {
 	robots.push_back(top_left);
 	robots.push_back(top_right);
@@ -8,25 +8,34 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	this->id = id;
 
 	setup_gui();
-
-	// setup the 2D bounds
+	
+	// Setup the end effector
+	this->ee = new ofNode();
+	this->ee->setParent(*_origin);
 	float h = robots[0]->bounds_max - robots[0]->bounds_min;
+	glm::vec3 pos = glm::vec3((base_top_left.x + base_top_right.x) / 2.0, - h / 2, 0);
+	this->ee->setPosition(pos);
+	
+	// Configure the robots with one end effector
+	robots[0]->configure(_origin, base_top_left, this->ee);
+	robots[1]->configure(_origin, base_top_right, this->ee);
+	
+	// Setup the 2D bounds
 	bounds.setHeight(-1 * h);
 	float w = robots[1]->get_tangent().getGlobalPosition().x - robots[0]->get_tangent().getGlobalPosition().x;
 	bounds.setWidth(w);
-	auto pos = robots[0]->get_tangent().getGlobalPosition();
+	pos = robots[0]->get_tangent().getGlobalPosition();
 	pos.y -= robots[0]->bounds_min.get();
 	bounds.setPosition(pos);
 
-	// setup the end effector
-	this->ee.setParent(*origin);
-	this->ee.setGlobalPosition(bounds.getCenter());
+	// update the gui
+	move_to.setMax(glm::vec2(bounds.getWidth(), -1 * bounds.getHeight()));
+	move_to.set(glm::vec2(bounds.getWidth()/2, -1 * bounds.getHeight()/2));
 
 	// setup the end effector control gizmo
-	gizmo_ee.setNode(ee);
+	gizmo_ee.setNode(*ee);
 	gizmo_ee.setDisplayScale(.5);
 
-	//gizmo_ee.setTranslationAxisMask(IGizmo::AXIS_Y);
 	gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
 	gizmo_ee.setScaleAxisMask(IGizmo::AXIS_X);
 }
@@ -66,7 +75,7 @@ void CableRobot2D::draw_gui() {
 	if (debugging) {
 		int y = panel.getPosition().y + panel.getHeight();
 		for (int i = 0; i < robots.size(); i++) {
-			robots[i]->panel.setPosition(panel.getPosition().x, y);
+			robots[i]->panel.setPosition(panel.getPosition().x + 25, y);
 			robots[i]->panel.draw();
 			y += robots[i]->panel.getHeight();
 		}
@@ -76,11 +85,16 @@ void CableRobot2D::draw_gui() {
 void CableRobot2D::update_gizmo()
 {
 	if (override_gizmo) {
-		gizmo_ee.setNode(ee);
+		gizmo_ee.setNode(*ee);
 	}
 	else {
-		ee.setGlobalPosition(gizmo_ee.getTranslation());
-		ee.setGlobalOrientation(gizmo_ee.getRotation());
+		ee->setGlobalPosition(gizmo_ee.getTranslation());
+		ee->setGlobalOrientation(gizmo_ee.getRotation());
+		// update the gui
+		if (gizmo_ee.isInteracting()) {
+			auto pos = ee->getPosition();
+			move_to.set(glm::vec2(pos.x, -1 * pos.y));
+		}
 	}
 }
 
@@ -133,15 +147,38 @@ void CableRobot2D::setup_gui()
 	params_motion.add(accel_rate.set("Accel_Rate_(RPM/s)", 1, 0.01, 2.0));
 	params_motion.add(decel_radius.set("Decel_Radius", 100, 0, 500));
 
+	params_move.setName("Move");
+	params_move.add(move_to.set("Move_To", glm::vec2(0, 0), glm::vec2(0, 0), glm::vec2(750, 2000)));
+	params_move.add(move_to_pos.set("Move_To_Pos"));
+	params_move.add(move_to_vel.set("Move_to_Vel", false));
+
+
+	// bind GUI listeners
+	e_stop.addListener(this, &CableRobot2D::on_e_stop);
+	enable.addListener(this, &CableRobot2D::on_enable);
+	btn_run_homing.addListener(this, &CableRobot2D::on_run_homing);
+	btn_run_shutdown.addListener(this, &CableRobot2D::on_run_shutdown);
+
+	base_offset.addListener(this, &CableRobot2D::on_base_offset_changed);
+	ee_offset.addListener(this, &CableRobot2D::on_ee_offset_changed);
+
+	move_to.addListener(this, &CableRobot2D::on_move_to_changed);
+	move_to_vel.addListener(this, &CableRobot2D::on_move_to_vel);
+
 	panel.add(params_control);
 	panel.add(params_limits);
 	panel.add(params_kinematics);
 	panel.add(params_motion);
+	panel.add(params_move);
 	
+	robots[0]->panel.setWidthElements(gui_width - 25);
 	robots[0]->panel.setParent(&panel);
 	robots[0]->panel.minimizeAll();
 	robots[1]->panel.setParent(&robots[0]->panel);
+	robots[1]->panel.setWidthElements(gui_width - 25);
 	robots[1]->panel.minimizeAll();
+
+	is_setup = true;
 }
 
 void CableRobot2D::update_gui(ofxPanel* _panel) {
@@ -179,7 +216,7 @@ void CableRobot2D::on_e_stop(bool& val)
 void CableRobot2D::on_run_homing()
 {
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->on_run_homing();		// blocks until complete <-- move into update() for threaded?
+		robots[i]->on_run_homing();
 	}
 }
 
@@ -187,7 +224,7 @@ void CableRobot2D::on_run_homing()
 void CableRobot2D::on_run_shutdown()
 {
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->on_run_homing();
+		robots[i]->on_run_shutdown();
 	}
 }
 
@@ -204,12 +241,40 @@ void CableRobot2D::on_bounds_changed(float& val)
 		robots[i]->bounds_min.set(bounds_min);
 		robots[i]->bounds_max.set(bounds_max);
 	}
+	// update the gui
+	move_to.setMax(glm::vec2(bounds.getWidth(), -1 * bounds.getHeight()));
 }
 
 void CableRobot2D::on_vel_limit_changed(float& val)
 {
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->on_vel_limit_changed(val);
+	}
+}
+
+void CableRobot2D::on_ee_offset_changed(float& val)
+{
+	float offset =  val;
+	robots[0]->get_target()->setPosition(-offset, 0, 0);
+	robots[1]->get_target()->setPosition(offset, 0, 0);
+}
+
+void CableRobot2D::on_move_to_pos()
+{
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->on_move_to();
+	}
+}
+
+void CableRobot2D::on_move_to_vel(bool& val)
+{
+	if (val) {
+		for (int i = 0; i < robots.size(); i++) 
+			robots[i]->on_move_to_vel();
+	}
+	else{
+		for (int i = 0; i < robots.size(); i++)
+			robots[i]->stop();
 	}
 }
 
@@ -228,6 +293,12 @@ void CableRobot2D::on_accel_limit_changed(float& val)
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->on_accel_limit_changed(val);
 	}
+}
+
+void CableRobot2D::on_move_to_changed(glm::vec2& val)
+{
+	ee->setPosition(glm::vec3(val.x, -1 * val.y, 0));
+	gizmo_ee.setNode(*ee);
 }
 
 bool CableRobot2D::is_estopped()

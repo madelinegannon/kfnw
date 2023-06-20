@@ -11,13 +11,13 @@ enum Groove {
 class CableDrum
 {
 private:
-    float diameter_drum;
-    float diameter_cable;
-    float length;
-    int turns;
-    glm::vec3 tangent_pt;
 public:
-    CableDrum() = default;
+    float diameter_drum = 99.95;
+    float diameter_cable = 0.3048;
+    float length = 30.0;
+    int turns = 40;
+    glm::vec3 tangent_pt = glm::vec3(0,0,0);
+    CableDrum(){ direction = Groove::LEFT_HANDED; };
     void initialize(Groove direction, float diameter_drum = 99.95, float length = 30, int turns = 30);
     void draw();
     Groove direction = Groove::NONE;

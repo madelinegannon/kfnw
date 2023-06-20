@@ -14,8 +14,8 @@ private:
 	int id;
 	vector<CableRobot*> robots;
 
-	ofNode* origin;      // World reference frame 
-	ofNode ee = ofNode();
+	ofNode* origin;     // World reference frame 
+	ofNode* ee;			// World reference 
 	ofxGizmo gizmo_ee;
 	
 	ofRectangle bounds;
@@ -30,7 +30,7 @@ public:
 
 	//CableRobot2D(vector<CableRobot> robots);
 	CableRobot2D() {};
-	CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, int id);
+	CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, glm::vec3 base_top_left, glm::vec3 base_top_right, int id);
 
 	void setup();
 	void update();
@@ -45,6 +45,8 @@ public:
 	void update_gizmo();
 
 	void key_pressed(int key);
+
+	bool is_setup = false;
 
 
 	void move_position(float target_pos, bool absolute = true);
@@ -72,7 +74,13 @@ public:
 	void on_accel_limit_changed(float& val);
 	void on_accel_rate_changed(float& val);
 	void on_decel_radius_changed(float& val);
+
+	void on_ee_offset_changed(float& val);
 	void on_base_offset_changed(float& val);
+
+	void on_move_to_changed(glm::vec2& val);
+	void on_move_to_pos();
+	void on_move_to_vel(bool& val);
 
 	ofxPanel panel;
 	ofParameterGroup params_control;
@@ -95,6 +103,11 @@ public:
 	ofParameterGroup params_kinematics;
 	ofParameter<float> base_offset;
 	ofParameter<float> ee_offset;
+
+	ofParameterGroup params_move;
+	ofParameter<glm::vec2> move_to;
+	ofParameter<void> move_to_pos;
+	ofParameter<bool> move_to_vel;
 
 	ofColor mode_color_enabled;
 	ofColor mode_color_disabled;

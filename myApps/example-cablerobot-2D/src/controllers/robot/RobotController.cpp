@@ -14,24 +14,23 @@ RobotController::RobotController(vector<glm::vec3> bases, ofNode* _origin)
 	gizmo_origin.setNode(*origin);
 	gizmo_origin.setDisplayScale(.33);
 
-	//// move to CableRobot2D class
-	//this->ee.setParent(*origin);
-	//auto mid_pt = (bases[0] + bases[1]) / 2.0 + origin->getGlobalPosition();
-	//mid_pt.y -= 1000;
-	//this->ee.setGlobalPosition(mid_pt);
-
-	//gizmo_ee_0.setNode(ee);
-	//gizmo_ee_0.setDisplayScale(.5);
-
-	////gizmo_ee_0.setTranslationAxisMask(IGizmo::AXIS_Y);
-	//gizmo_ee_0.setRotationAxisMask(IGizmo::AXIS_Z);
-	//gizmo_ee_0.setScaleAxisMask(IGizmo::AXIS_X);
-
-	// add to the gizmo list
+	// add the origin gizmo to the gizmos list
 	gizmos.push_back(&gizmo_origin);
-	//gizmos.push_back(&gizmo_ee_0);
 
+	// create an end_effector in the middle of the robots
+	//ee = ofNode();
+	//if (system_config == Configuration::TWO_D) {
+	//	ee.setParent(*origin);
+	//	glm::vec3 pos;
+	//	for (auto base : bases)
+	//		pos += base;
+	//	pos /= bases.size();
+	//	pos.y -= 1000;
+	//	ee.setGlobalPosition(pos + origin->getGlobalPosition());
+	//}
 	
+
+
 	startThread();
 }
 
@@ -65,6 +64,9 @@ void RobotController::save_settings(string filename)
 	config.popTag();
 
 	config.saveFile(filename);
+
+	for (auto robot : robots)
+		robot->save_config_to_file();
 }
 
 /**
@@ -148,52 +150,25 @@ bool RobotController::initialize()
 				IPort& myPort = myMgr->Ports(i);
 				ofLogNotice("RobotController::initialize") << "\tSTATUS: Port " << myPort.NetNumber() << ", state=" << myPort.OpenState() << ", nodes=" << myPort.NodeCount();
 				
-				// Create each cable robot, set its world position
+				// Create each cable robot and set its world position
 				for (size_t j = 0; j < myPort.NodeCount(); j++) {
+					// Store each individual robot, no matter the configuration
 					robots.push_back(new CableRobot(*myMgr, &myPort.Nodes(j)));
-					
-					//if (load_robots_from_file)					// <-- CAUSING CRASH
-					//	robots.back()->load_config_from_file();
-					//else {
-						auto base = bases[j];
-						float diameter = 100;
-						float length = 30;
-						int turns = 30;
-						Groove dir;
-						//if (j % 2 == 0)
-							dir = Groove::LEFT_HANDED;
-						//else
-						//	dir = Groove::RIGHT_HANDED;
-						robots.back()->configure(origin, &ee, base, dir, diameter, length, turns);
-						if (system_config == Configuration::ONE_D) {
-							gizmos.push_back(robots.back()->get_gizmo());
-						}
-					//}
-
-#ifdef AUTO_HOME
-					// if the motor is not homed,
-					if (!robots.back()->is_homed()) {
-						// automatically run the homing routine
-						cout << "Motor " << j << " is not home ... running homing routine now:" << endl;
-						robots.back()->run_homing_routine();
+					if (system_config == Configuration::ONE_D) {
+						// configure for 1D application
+						robots.back()->configure(origin, bases[j]);
+						gizmos.push_back(robots.back()->get_gizmo());
 					}
-#endif // AUTO_HOME
+					else if (system_config == Configuration::TWO_D) {
+						// Make a 2D robot
+						if (j % 2 != 0) {
+							robots_2D.push_back(new CableRobot2D(robots[j - 1], robots[j], origin, bases[j - 1], bases[j], j / 2));
+							gizmos.push_back(robots_2D.back()->get_gizmo());
+						}
+					}
 				}
 
 			}
-
-			if (system_config == Configuration::TWO_D && robots.size() % 2 == 0) {
-				for (int i = 0; i < robots.size(); i += 2) {
-					robots_2D.push_back(new CableRobot2D(robots[0], robots[1], origin, i));
-				}
-			}
-
-			//// create the 2D bounds
-			//bounds.setHeight(-robots[0]->bounds_max);
-			//float w = robots[1]->get_tangent().getGlobalPosition().x - robots[0]->get_tangent().getGlobalPosition().x;
-			//bounds.setWidth(w + 0);
-			//bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
-
 			// update the gui
 			num_robots.set(ofToString(robots.size()));
 			sync_index.setMax(robots.size() - 1);
@@ -210,7 +185,6 @@ bool RobotController::initialize()
 
 		return false;
 	}
-	cout << "LEAVING INTIALIZE robots.size(): " << robots.size() << endl;
 	return true;
 }
 
@@ -218,9 +192,6 @@ void RobotController::update()
 {
 	// update the gizmos
 	update_gizmos();
-	
-	// update the 2D bounds posistion
-	//bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
 
 	if (system_config == Configuration::ONE_D) {
 		for (int i = 0; i < robots.size(); i++) {
@@ -237,7 +208,6 @@ void RobotController::update()
 
 void RobotController::draw()
 {
-
 	if (system_config == Configuration::ONE_D) {
 		for (int i = 0; i < robots.size(); i++) {
 			robots[i]->draw();
@@ -448,6 +418,11 @@ void RobotController::key_pressed(int key)
 		case 'H':
 			showGUI = !showGUI;
 			break;
+		case 's':
+		case 'S':
+			ofLogNotice() << "Saving Configuration Files.";
+			save_settings();
+			break;
 	default:
 		break;
 	}
@@ -485,7 +460,9 @@ void RobotController::key_pressed_gizmo(int key)
 			gizmo->setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_SCALE);
 		break;
 	case '0':
-		// reset to the transform
+		// reset the transform of the origin node
+		gizmo_origin.setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_MOVE);
+		gizmo_origin.setMatrix(glm::mat4());
 		//for (auto gizmo : gizmos) {
 		//	gizmo->setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_MOVE);
 		//	gizmo->setMatrix(glm::mat4());
@@ -533,18 +510,18 @@ void RobotController::update_gizmos()
 	}
 }
 
-void RobotController::set_ee(glm::vec3 pos, glm::quat orient)
-{
-	// move the ee gizmo if we're moving the origin gizmo
-	if (gizmos[0]->isInteracting()) {
-		gizmo_ee_0.setNode(ee);
-	}
-	// otherwise update the ee based on the ee gizmo 
-	else {
-		ee.setGlobalPosition(pos);
-		ee.setGlobalOrientation(orient);
-	}
-}
+//void RobotController::set_ee(glm::vec3 pos, glm::quat orient)
+//{
+//	// move the ee gizmo if we're moving the origin gizmo
+//	if (gizmos[0]->isInteracting()) {
+//		gizmo_ee_0.setNode(*ee);
+//	}
+//	// otherwise update the ee based on the ee gizmo 
+//	else {
+//		ee->setGlobalPosition(pos);
+//		ee->setGlobalOrientation(orient);
+//	}
+//}
 
 /**
  * @brief Makes all the robots match the motion parameters and position of the `sync_index` robot.

@@ -14,6 +14,8 @@ using namespace sFnd;
 class CableRobot
 {
 private:
+    ofxXmlSettings config;
+
     // Motion Parameters
     float velocity_max = 300;   // RPM
     float accel_max = 800;      // RPM_PER_SEC
@@ -30,13 +32,13 @@ private:
     // Kinematics
     ofNode* origin;     // external parent node (in world coordinates)
     ofNode* ee;         // external parent ee node
-    ofNode base;        // center of cable drum
-    ofNode tangent;     // tangent point on the cable drum
-    ofNode target;      // desired ee position
-    ofNode actual;      // actual ee position
+    ofNode base = ofNode();        // center of cable drum
+    ofNode tangent = ofNode();     // tangent point on the cable drum
+    ofNode target = ofNode();      // desired ee position
+    ofNode actual = ofNode();      // actual ee position
 
     MotorController* motor_controller;
-    CableDrum drum;
+    CableDrum drum = CableDrum();
 
     void setup_gui();
     ofxGizmo gizmo_ee;
@@ -69,33 +71,38 @@ private:
         VEL
     };
     MoveType move_type = MoveType::POS;
+    void load_config_from_file(string filename=""); // <-- crashes if called externally for some reason
 public:
     CableRobot();
-    CableRobot(SysManager& SysMgr, INode* node);
+    CableRobot(SysManager& SysMgr, INode* node, bool load_config_file = true);
     CableRobot(glm::vec3 base);
 
-    void load_config_from_file(string filename="");
+    bool load_config_file = true;
     bool save_config_to_file(string filename="");
 
     ofxGizmo* get_gizmo() { return &gizmo_ee; }
     bool override_gizmo = false;
     void update_gizmo();
+    void update_move_to();
 
     void update();
     void draw();
     void key_pressed(int key);
     int get_id();
 
-    void configure(ofNode* _origin, 
-        ofNode* _ee, 
+    void configure(ofNode* _origin,
+        ofNode* _ee,
         glm::vec3 base,
-        Groove direction,
-        float diameter_drum, 
-        float length, 
-        int turns
+        Groove direction = Groove::LEFT_HANDED,
+        float diameter_drum = 99.95,
+        float length = 30 ,
+        int turns = 30
     );
+    void configure(ofNode* _origin, glm::vec3 base, ofNode* _ee = new ofNode());
     void check_for_system_ready();
     bool is_ready();
+
+    bool is_setup = false;
 
     float get_position_actual();
     vector<float> get_motion_parameters();
@@ -109,7 +116,9 @@ public:
     void set_bounds(float min, float max);
 
     ofNode get_tangent() { return tangent; }
+    ofNode* get_tangent_ptr() { return &tangent; }
     ofNode* get_target() { return &target; }
+    void set_ee(ofNode* _ee) { this->ee = _ee; }
 
     ofNode get_base() { return base; }
     void set_base_position(glm::vec3 pos) { base.setPosition(pos); }
@@ -146,8 +155,8 @@ public:
     ofxPanel panel;
     ofParameterGroup params_control;
     ofParameter<string> status;
-    ofParameter<bool> enable;
-    ofParameter<bool> e_stop;
+    ofParameter<bool> enable = false;
+    ofParameter<bool> e_stop = false;
     ofParameter<void> btn_run_homing;
     ofParameter<void> btn_run_shutdown;
 
@@ -163,17 +172,17 @@ public:
     ofParameter<void> btn_move_to_vel;
 
     ofParameterGroup params_limits;
-    ofParameter<float> vel_limit;
-    ofParameter<float> accel_limit;
-    ofParameter<float> bounds_min;
-    ofParameter<float> bounds_max;
+    ofParameter<float> vel_limit = 30;
+    ofParameter<float> accel_limit = 200;
+    ofParameter<float> bounds_min = 100;
+    ofParameter<float> bounds_max = 1800;
 
 
     //ofParameter<ofVec3f> position_world;
 
     ofParameterGroup params_jog;
-    ofParameter<float> jog_vel;
-    ofParameter<float> jog_accel;
+    ofParameter<float> jog_vel = 20;
+    ofParameter<float> jog_accel = 200;
     ofParameter<float> jog_dist;
     ofParameter<void> btn_jog_up;
     ofParameter<void> btn_jog_down;
