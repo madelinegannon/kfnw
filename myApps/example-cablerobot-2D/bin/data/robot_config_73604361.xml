@@ -1,30 +1,30 @@
 <config>
-    <timestamp>2023-06-15-16-04-33-596</timestamp>
+    <timestamp>2023-06-29-15-58-53-194</timestamp>
     <serial_number>73604361</serial_number>
     <auto_home>0</auto_home>
     <kinematics>
         <base>
-            <X>914.000000000</X>
+            <X>0.000000000</X>
             <Y>0.000000000</Y>
             <Z>0.000000000</Z>
         </base>
         <tangent>
-            <X>40.000000000</X>
-            <Y>-90.000000000</Y>
+            <X>0.000000000</X>
+            <Y>0.000000000</Y>
             <Z>0.000000000</Z>
         </tangent>
         <target>
-            <X>497.000000000</X>
+            <X>0.000000000</X>
             <Y>0.000000000</Y>
             <Z>0.000000000</Z>
         </target>
     </kinematics>
     <limits>
-        <vel_limit>30.000000000</vel_limit>
-        <accel_limit>200.000000000</accel_limit>
+        <vel_limit>100.000000000</vel_limit>
+        <accel_limit>800.000000000</accel_limit>
         <bounds_min>100.000000000</bounds_min>
         <bounds_max>2000.000000000</bounds_max>
-        <bounds_shutdown>2140.000000000</bounds_shutdown>
+        <bounds_shutdown>2148.000000000</bounds_shutdown>
     </limits>
     <jogging>
         <jog_vel>30.000000000</jog_vel>
@@ -32,13 +32,13 @@
     </jogging>
     <cable_drum>
         <direction>1</direction>
-        <diameter_drum>100.000000000</diameter_drum>
+        <diameter_drum>99.949996948</diameter_drum>
         <diameter_cable>0.304800000</diameter_cable>
         <length>30</length>
         <turns>40</turns>
         <tangent>
-            <X>40.000000000</X>
-            <Y>-90.000000000</Y>
+            <X>0.000000000</X>
+            <Y>0.000000000</Y>
             <Z>0.000000000</Z>
         </tangent>
     </cable_drum>
