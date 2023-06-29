@@ -6,6 +6,7 @@
 #include "ofxGizmo.h"
 #include "CableDrum.h"
 #include "MotorController.h"
+#include "Trajectory.h"
 
 #include "pubSysCls.h"
 
@@ -21,7 +22,7 @@ private:
     float accel_max = 800;      // RPM_PER_SEC
     float position_min = 0;     // absolute position in mm
     float position_max = 2000;  // absolute position in mm
-    float position_shutdown = 2140;  // absolute position in mm
+    float position_shutdown = 2148;  // absolute position in mm
 
     bool is_in_bounds_absolute(float target_pos_absolute);
     bool is_in_bounds_relative(float target_pos_relative);
@@ -37,6 +38,15 @@ private:
     ofNode target = ofNode();      // desired ee position
     ofNode actual = ofNode();      // actual ee position
 
+    //vector<glm::vec3> path;        // store the target trajectory
+    glm::vec3 heading_actual;
+
+    //ofPolyline trajectory;
+    Trajectory trajectory;
+    void update_trajectory();
+    glm::vec3 get_target_from_distance(float dist);
+
+
     MotorController* motor_controller;
     CableDrum drum = CableDrum();
 
@@ -49,9 +59,7 @@ private:
     float count_to_mm(int val, bool use_unsigned = false);
     int mm_to_count(float val, bool use_unsigned = false);
 
-
-    float compute_target_velocity(float target_pos);
-    float target_velocity = 0.0;
+    void draw_cable(glm::vec3 _anchor, glm::vec3 _target);
 
     enum RobotState {
         NOT_HOMED,
@@ -130,6 +138,7 @@ public:
 
     void move_position(float target_pos, bool absolute = true);
     void move_velocity(float target_pos);
+    void move_velocity_rpm(float rpm);
 
 
     void stop();
@@ -146,8 +155,8 @@ public:
     void on_jog_up();
     void on_jog_down();
     void on_move_to_changed(float& val);
-    void on_move_to();
-    void on_move_to_vel();
+    void on_move_to_pos();
+    void on_move_to_vel(bool& val);
     void on_bounds_changed(float& val);
     void on_vel_limit_changed(float& val);
     void on_accel_limit_changed(float& val);
@@ -165,11 +174,18 @@ public:
     ofParameter<string> info_position_cnt;
     ofParameter<string> info_vel_limit;
     ofParameter<string> info_accel_limit;
+    ofParameter<string> info_target_velocity;
 
-    ofParameterGroup params_move_to;
+    ofParameterGroup params_motion;
+    ofParameter<float> accel_rate;
+    ofParameter<float> decel_radius;
+    ofParameter<float> zone;
+    bool use_trajectory = true;
+
+    ofParameterGroup params_move;
     ofParameter<float> move_to;
-    ofParameter<void> btn_move_to;
-    ofParameter<void> btn_move_to_vel;
+    ofParameter<void> move_to_pos;
+    ofParameter<bool> move_to_vel;
 
     ofParameterGroup params_limits;
     ofParameter<float> vel_limit = 30;
@@ -196,4 +212,6 @@ public:
     ofColor mode_color_disabled;
     ofColor mode_color_not_homed;
     ofColor mode_color_estopped;
+
+    
 };

@@ -22,8 +22,6 @@ private:
 
 	void setup_gui();
 	string state_names[5] = { "NOT_HOMED", "HOMING", "ENABLED", "DISABLED", "E_STOP" };
-
-	void check_status();
    
 	bool debugging = true;
 public:
@@ -32,21 +30,19 @@ public:
 	CableRobot2D() {};
 	CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, glm::vec3 base_top_left, glm::vec3 base_top_right, int id);
 
-	void setup();
 	void update();
 	void draw();
 	void update_gui(ofxPanel* _panel);
 	void draw_gui();
 	void shutdown();
 
+	void get_status();
 
 	ofxGizmo* get_gizmo() { return &gizmo_ee; }
 	bool override_gizmo = false;
 	void update_gizmo();
 
 	void key_pressed(int key);
-
-	bool is_setup = false;
 
 
 	void move_position(float target_pos, bool absolute = true);
@@ -72,8 +68,6 @@ public:
 	void on_bounds_changed(float& val);
 	void on_vel_limit_changed(float& val);
 	void on_accel_limit_changed(float& val);
-	void on_accel_rate_changed(float& val);
-	void on_decel_radius_changed(float& val);
 
 	void on_ee_offset_changed(float& val);
 	void on_base_offset_changed(float& val);
@@ -81,6 +75,9 @@ public:
 	void on_move_to_changed(glm::vec2& val);
 	void on_move_to_pos();
 	void on_move_to_vel(bool& val);
+	void on_accel_rate_changed(float& val);
+	void on_decel_radius_changed(float& val);
+	void on_zone_changed(float& val);
 
 	ofxPanel panel;
 	ofParameterGroup params_control;
@@ -96,13 +93,14 @@ public:
 	ofParameter<float> bounds_min;
 	ofParameter<float> bounds_max;
 
-	ofParameterGroup params_motion;
-	ofParameter<float> accel_rate;
-	ofParameter<float> decel_radius;
-
 	ofParameterGroup params_kinematics;
 	ofParameter<float> base_offset;
 	ofParameter<float> ee_offset;
+
+	ofParameterGroup params_motion;
+	ofParameter<float> accel_rate;
+	ofParameter<float> decel_radius;
+	ofParameter<float> zone;
 
 	ofParameterGroup params_move;
 	ofParameter<glm::vec2> move_to;

@@ -40,6 +40,7 @@ public:
     bool is_estopped();
     bool is_homed();
     bool is_enabled();
+    bool is_in_motion();
 
     bool run_homing_routine(int _timeout=20);
 };

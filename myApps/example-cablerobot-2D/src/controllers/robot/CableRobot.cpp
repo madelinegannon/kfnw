@@ -5,9 +5,6 @@ CableRobot::CableRobot(SysManager& SysMgr, INode* node, bool load_config_file)
 	motor_controller = new MotorController(SysMgr, node);
 	setup_gui();
 	motor_controller->get_motor()->set_motion_params(vel_limit.get(), accel_limit.get());
-	// referesh the gui
-	vel_limit.set(vel_limit.get());
-	accel_limit.set(accel_limit.get());
 
 	check_for_system_ready();
 
@@ -15,11 +12,15 @@ CableRobot::CableRobot(SysManager& SysMgr, INode* node, bool load_config_file)
 	if (load_config_file) {
 		load_config_from_file();
 	}
+	else {
+		save_config_to_file();
+	}
 }
 
 CableRobot::CableRobot(glm::vec3 base)
 {
 }
+
 void CableRobot::configure(ofNode* _origin, ofNode* _ee, glm::vec3 base, Groove direction, float diameter_drum, float length, int turns)
 {
 	this->origin = _origin;
@@ -73,6 +74,9 @@ void CableRobot::configure(ofNode* _origin, ofNode* _ee, glm::vec3 base, Groove 
 		target.setPosition(x, 0, ee->getPosition().z);
 	}
 
+	// set the trajectory starting point
+	trajectory.reset(target.getGlobalPosition());
+	trajectory.desired_pos.set(target.getGlobalPosition());
 }
 
 void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
@@ -131,7 +135,9 @@ void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
 		gizmo_ee.setDisplayScale(.5);
 		gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
 	}
-
+	//trajectory.reset();
+	trajectory.curr_pos.set(target.getGlobalPosition());
+	trajectory.desired_pos.set(target.getGlobalPosition());
 }
 
 float CableRobot::get_position_actual()
@@ -414,25 +420,30 @@ void CableRobot::update()
 			panel.setBorderColor(color);
 		}
 		else {
-			state = RobotState::NOT_HOMED;
-			status.set(state_names[state]);
-			panel.setBorderColor(mode_color_not_homed);
+			//state = RobotState::NOT_HOMED;
+			//status.set(state_names[state]);
+			//panel.setBorderColor(mode_color_not_homed);
 		}
 	}
 
-	else if (move_type == MoveType::VEL) {
-		if (tangent.getGlobalPosition().y - target.getGlobalPosition().y > 0) {				// NOTE: this may not work for 2D
-			// get distance to target
-			float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
-			move_velocity(dist);	// always sending positive value
-		}
-		else {
-			stop();
-			ofLogWarning("CableRobot::update") << "Stopping CableRobot " << motor_controller->get_motor_id() << ": trying to send past home position." << endl;
+	if (move_type == MoveType::VEL) {
+
+		update_trajectory();
+		
+		if (state != RobotState::E_STOP) {
+			if (is_in_bounds(abs(actual.getPosition().y), true)){	
+				move_velocity_rpm(trajectory.get_rpm());				
+			}
+			else {
+				stop();
+				stop();
+				ofLogWarning("CableRobot::update") << "Stopping CableRobot " << motor_controller->get_motor_id() << ": trying to send past home position." << endl;
+			}
 		}
 	}
+	else {
 
-
+	}
 
 	// update the actual positions
 	float dist_actual = get_position_actual();
@@ -446,10 +457,15 @@ void CableRobot::draw()
 	ofSetLineWidth(2);
 	ofSetColor(255);
 	ofNoFill();
+
+	// draw base and tangent nodes
 	ofDrawEllipse(base.getGlobalPosition(), drum.get_diameter(), drum.get_diameter());
 	ofDrawLine(base.getGlobalPosition(), tangent.getGlobalPosition());
 	base.draw();
 	tangent.draw();
+
+
+	// draw current ee
 
 	// draw ghosted line between tangent and target & ee and target
 	// show RED if the target is out of bounds
@@ -465,37 +481,23 @@ void CableRobot::draw()
 	ofDrawLine(tangent.getGlobalPosition(), target.getGlobalPosition());
 	ofDrawLine(ee->getGlobalPosition(), target.getGlobalPosition());
 	
+
+	// draw the target
 	ofFill();
 	ofSetColor(ofColor::red, 200);
 	ofDrawEllipse(target.getGlobalPosition(), 50, 50);
 
-	// draw solid line between tangent and actual
-	ofSetLineWidth(1);
+	// draw the trajectory
+	trajectory.draw();
+
+
+	glm::vec3 desired_actual = heading_actual * get_position_actual() + tangent.getGlobalPosition();
 	ofSetColor(255);
+	ofSetLineWidth(2);
+	draw_cable(tangent.getGlobalPosition(), desired_actual);
 
-	if (debugging) {
-		ofDrawLine(tangent.getGlobalPosition(), actual.getGlobalPosition());
-		ofSetColor(ofColor::orange, 200);
-		ofDrawEllipse(actual.getGlobalPosition(), 40, 40);
-	}
-
-	// draw projected actual
-	auto dist = get_position_actual();
-	glm::vec3 tangent_to_target;
-	if (tangent.getGlobalPosition().y < target.getGlobalPosition().y) 
-		tangent_to_target = tangent.getGlobalPosition() - target.getGlobalPosition();
-	else
-		tangent_to_target = target.getGlobalPosition() - tangent.getGlobalPosition();
-	auto tangent_to_actual_projected = glm::normalize(tangent_to_target) * dist;
-
-	ofSetColor(255);
-	ofDrawLine(tangent.getGlobalPosition(), tangent.getGlobalPosition() + tangent_to_actual_projected);
-	ofSetColor(ofColor::orange, 200);
-	ofDrawEllipse(tangent.getGlobalPosition() + tangent_to_actual_projected, 40, 40);
-	//cout << "TANGENT WORLD: " << ofToString(tangent.getGlobalPosition()) << ", LOCAL: " << ofToString(tangent.getPosition()) << endl;
-	//cout << "TARGET WORLD: " << ofToString(target.getGlobalPosition()) << ", LOCAL: " << ofToString(target.getPosition()) << endl;
-	//cout << "tangent_to_target: " << ofToString(tangent_to_target) << endl;
-	//cout << "tangent_to_actual_projected: " << ofToString(tangent_to_actual_projected) << endl << endl;
+	if (debugging)
+		draw_cable(tangent.getGlobalPosition(), actual.getGlobalPosition());
 
 	ofSetColor(60);
 	// draw distance to target
@@ -518,6 +520,7 @@ void CableRobot::draw()
 	// update gui
 	info_position_mm.set(ofToString(get_position_actual()));
 	info_position_cnt.set(ofToString(motor_controller->get_motor()->get_position(false)));	// for debugging
+	//info_target_velocity.set(ofToString(target_velocity));  // <-- updated in compute_velocity()
 }
 
 void CableRobot::update_gizmo()
@@ -528,16 +531,14 @@ void CableRobot::update_gizmo()
 	else {
 		ee->setGlobalPosition(gizmo_ee.getTranslation());
 		ee->setGlobalOrientation(gizmo_ee.getRotation());
-		// update the gui
+		
 		if (gizmo_ee.isInteracting()) {
-			//float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
-			//// don't go past the min bounds
-			//if (dist < bounds_min.get())
-			//	dist = bounds_min.get();
-			//move_to.set(dist);
+			// update the gui
 			update_move_to();
 		}
 	}	
+
+
 }
 
 void CableRobot::update_move_to() {
@@ -551,10 +552,13 @@ void CableRobot::update_move_to() {
 bool CableRobot::shutdown(int timeout)
 {
 	// turn off any velocity moves
-	if (target_velocity != 0) target_velocity = 0;
+	move_to_vel.set(false);
 	move_type = MoveType::POS;
 
 	ofLogNotice("CableRobot::on_run_shutdown") << "Shutting Down CableRobot " << motor_controller->get_motor_id();
+	vel_limit.set(20);
+	accel_limit.set(200);
+
 	jog_vel.set(50);
 	jog_accel.set(200);
 	jog_dist.set(bounds_max.get());
@@ -596,6 +600,7 @@ void CableRobot::key_pressed(int key)
 	{
 	// trigger stop with SPACEBAR
 	case ' ':
+		stop();
 		stop();
 		break;
 	// minimize all gui groups, expect control
@@ -677,7 +682,7 @@ bool CableRobot::is_in_bounds(float target_pos, bool is_absolute)
 }
 
 /**
- * @brief Returns the sign for moving the motor based on the cable drum's groove direction.
+ * @brief Returns the sign for moving the motor based on the cable drum's groove direction. LEFT_HANDED = -1, RIGHT_HANDED = 1.
  *  
  * A homed, left-handed drum operates in negative rotation space.
  * @return (int)  -/+ 1 depending on configuration
@@ -730,7 +735,37 @@ void CableRobot::check_for_system_ready()
  */
 bool CableRobot::is_ready()
 {
-	return state == RobotState::ENABLED;
+	return is_homed() && is_enabled();
+}
+
+void CableRobot::update_trajectory()
+{
+	// get the distance to the target and the distance to the trajectory's last target
+	float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
+
+	bool add_target = false;
+	if (trajectory.get_num_targets() == 0)
+		add_target = true;
+	else {
+		// add the target to the trajectory path, but don't add small moves
+		float dist_to_last_target = glm::distance(tangent.getGlobalPosition(), trajectory.get_last_target());
+		float dist_diff = abs(dist - dist_to_last_target);
+		if (abs(dist - dist_to_last_target) > 0.5)
+			add_target = true;
+	}
+
+	if (add_target){
+		// get the correct sign for the distance
+		tangent.getGlobalPosition().y > target.getGlobalPosition().y ? dist *= -1 : dist *= 1;
+		// create a 1D target for the trajectory
+		glm::vec3 trajectory_target = glm::vec3(tangent.getGlobalPosition());
+		trajectory_target.y += dist;
+		// add to the trajectory
+		trajectory.add_target(trajectory_target);
+	}
+	
+	// update the trajectory's position / vel / heading / rpm
+	trajectory.update(actual.getGlobalPosition());
 }
 
 void CableRobot::setup_gui()
@@ -760,10 +795,11 @@ void CableRobot::setup_gui()
 	string accel_lim = ofToString(motor_controller->get_motor()->get_acceleration());
 	params_info.add(info_vel_limit.set("Vel_Limit_(RPM)", vel_lim));
 	params_info.add(info_accel_limit.set("Accel_Limit_(RPM/s)", accel_lim));
+	params_info.add(info_target_velocity.set("Target_Vel_(RPM)", vel_lim));
 
 	params_limits.setName("Limits");
-	params_limits.add(vel_limit.set("Vel_Limit_(RPM)", 30, 0, 300));
-	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 200, 0, 1000));
+	params_limits.add(vel_limit.set("Vel_Limit_(RPM)", 100, 0, 300));
+	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 800, 0, 1000));
 	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 2000));
 	params_limits.add(bounds_max.set("Bounds_Max", 2000, 0, 2000));
 
@@ -774,20 +810,26 @@ void CableRobot::setup_gui()
 	params_jog.add(btn_jog_up.set("Jog_Up"));
 	params_jog.add(btn_jog_down.set("Jog_Down"));
 
-	params_move_to.setName("Move_To");
+	params_motion.setName("Motion");
+	params_motion.add(accel_rate.set("Accel_Rate_(RPM/s)", 1.0, 0.01, 2.0));
+	params_motion.add(decel_radius.set("Decel_Radius", 50, 0, 250));
+	params_motion.add(zone.set("Zone", 5, 0, 100));
+
+	params_move.setName("Move");
 	int val = (bounds_min.get() + bounds_max.get()) / 2;
-	params_move_to.add(move_to.set("Move_to_Pos", val, bounds_min.get(), bounds_max.get()));
-	params_move_to.add(btn_move_to.set("Send_Move"));
-	params_move_to.add(btn_move_to_vel.set("Send_Move_Vel"));
+	params_move.add(move_to.set("Move_To", val, bounds_min.get(), bounds_max.get()));
+	params_move.add(move_to_pos.set("Move_Pos"));
+	params_move.add(move_to_vel.set("Move_Vel", false));
+	params_move.add(params_motion);
 	
 	// bind GUI listeners
 	e_stop.addListener(this, &CableRobot::on_e_stop);
 	enable.addListener(this, &CableRobot::on_enable);
 	btn_run_homing.addListener(this, &CableRobot::on_run_homing);
 	btn_run_shutdown.addListener(this, &CableRobot::on_run_shutdown);
-	btn_move_to.addListener(this, &CableRobot::on_move_to);
+	move_to_pos.addListener(this, &CableRobot::on_move_to_pos);
 	move_to.addListener(this, &CableRobot::on_move_to_changed);
-	btn_move_to_vel.addListener(this, &CableRobot::on_move_to_vel);
+	move_to_vel.addListener(this, &CableRobot::on_move_to_vel);
 	btn_jog_up.addListener(this, &CableRobot::on_jog_up);
 	btn_jog_down.addListener(this, &CableRobot::on_jog_down);
 	vel_limit.addListener(this, &CableRobot::on_vel_limit_changed);
@@ -795,16 +837,23 @@ void CableRobot::setup_gui()
 	bounds_max.addListener(this, &CableRobot::on_bounds_changed);
 	bounds_min.addListener(this, &CableRobot::on_bounds_changed);
 
+	vel_limit.set(100);
+	accel_limit.set(800);
+	trajectory.max_vel.set(vel_limit.get() / 2.0);
+
 	panel.add(params_control);
 	panel.add(params_info);
 	panel.add(params_limits);
 	panel.add(params_jog);
-	panel.add(params_move_to);
+	panel.add(params_move);
+	panel.add(trajectory.params);
 
 	// Minimize less important parameters
 	panel.getGroup("Info").minimize();
 	panel.getGroup("Limits").minimize();
 	panel.getGroup("Jogging").minimize();
+	panel.getGroup("Info").minimize();
+	panel.getGroup("Trajectory").minimize();
 
 	is_setup = true;
 }
@@ -931,69 +980,33 @@ void CableRobot::move_position(float target_pos, bool is_absolute)
 	}
 }
 
-/**
- * @brief Get the velocity to steer towards a target position (in mm).
- * Accounts for drum directions.
- * 
- * Checks if in bounds. If out of bounds, stops the motor and returns 0.0.
- * Clamps to Velocity Limit. 
- * 
- * @param (float)  target_pos: target position (in mm)
- * @return (float)  target velocity (in RPM);
- */
-float CableRobot::compute_target_velocity(float target_pos)
+
+void CableRobot::draw_cable(glm::vec3 start, glm::vec3 end)
 {
-	float actual_pos = get_position_actual();
-	if (is_in_bounds(actual_pos, true)) {
-		float actual_to_target_dist = abs(actual_pos - target_pos);
-		float max_vel = vel_limit.get();
-		float accel = 1;
-
-		// add acceleration each iteration until we reach max velocity
-		if (target_velocity < max_vel) {
-			target_velocity += accel;
-		}
-		
-		// slow down if we're getting close
-		float arrive_dist = 50;
-		if (actual_to_target_dist < arrive_dist) {
-			// use the MIN so the vel doesn't speed up if it slowly enters the arrival radius
-			target_velocity = min(target_velocity, ofMap(actual_to_target_dist, arrive_dist, 0, max_vel, 0, true));
-		}
-
-		// clamp again, just in case
-		target_velocity = min(target_velocity, max_vel);
-
-		// assign to a temp variable to adjust the sign
-		float target_vel = target_velocity;
-		if (target_pos - actual_pos < 0) {
-			target_vel *= -1;
-		}
-
-		//cout << "ACTUAL = " << actual_pos << ", TARGET = " << target_pos << endl;
-		//cout << "\tDESIRED DIST = " << actual_to_target_dist << endl;
-		//cout << "\tDESIRED VEL = " << target_vel << endl;
-
-		// return target velocity 
-		return target_vel * get_rotation_direction();
-	}
-	else {
-		ofLogWarning() << "Robot " << ofToString(get_id()) << "is OUT OF BOUNDS. STOPPING MOTION"; 
-		stop();
-		return 0.0;
-	}
+	ofDrawLine(start, end);
+	ofFill();
+	ofSetColor(ofColor::orange, 200);
+	ofDrawEllipse(end, 40, 40);
 }
 
-void CableRobot::move_velocity(float target_pos)
+
+void CableRobot::move_velocity_rpm(float rpm)
 {
 	if (!is_estopped() && is_enabled() && is_homed()) {
-		// check if in bounds & compute the target velocity
-		float target_vel = compute_target_velocity(target_pos);
-		motor_controller->get_motor()->move_velocity(target_vel);
+		//cout << "RPM from Trajectory: " << rpm << endl;
+
+		// get whether we're moving up (1) or down (-1)
+		rpm *= trajectory.get_heading().y * -1;
+		// convert for cable drum direction 
+		rpm *= get_rotation_direction();
+		// clamp to velocity limit
+		rpm = ofClamp(rpm, -vel_limit.get(), vel_limit.get());
+		//cout << "\tfinal RPM: " << rpm << endl;
+		
+		// send velocity command to motor
+		motor_controller->get_motor()->move_velocity(rpm);
 	}
 	else {
-		if (target_velocity != 0) target_velocity = 0;
-
 		string msg = "";
 		if (is_estopped())
 			msg = "Cannot move Robot " + ofToString(get_id()) + " while in an ESTOP state.";
@@ -1007,16 +1020,16 @@ void CableRobot::move_velocity(float target_pos)
 
 void CableRobot::stop()
 {
-	if (target_velocity != 0) target_velocity = 0;
 	move_type = MoveType::POS;
 	motor_controller->get_motor()->stop();
 }
 
 void CableRobot::set_e_stop(bool val)
 {
-	if (target_velocity != 0) target_velocity = 0;
-	if (val)
-		move_type = MoveType::POS;
+	if (val) {
+		stop();
+		stop();
+	}
 	motor_controller->get_motor()->set_e_stop(val);
 }
 
@@ -1036,7 +1049,6 @@ void CableRobot::on_enable(bool& val)
 		else {
 			panel.setBorderColor(mode_color_disabled);
 			state = RobotState::DISABLED;
-			if (target_velocity != 0) target_velocity = 0;
 		}
 		status.set(state_names[state]);
 	}
@@ -1185,18 +1197,24 @@ void CableRobot::on_move_to_changed(float& val)
 /**
  * @brief GUI Callback to Move To absolute position.
  */
-void CableRobot::on_move_to()
+void CableRobot::on_move_to_pos()
 {
-	if (target_velocity != 0) target_velocity = 0;
+	move_to_vel.set(false);
 	move_type = MoveType::POS;
 	float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());;
 	move_position(dist, true);// move_to.get(), true);
 }
 
-void CableRobot::on_move_to_vel()
+void CableRobot::on_move_to_vel(bool &val)
 {
-	move_type = MoveType::VEL;
-	// velocity moves are handled in update()
+	if (val)
+		// velocity moves are handled in update()
+		move_type = MoveType::VEL;
+	else {
+		stop();
+		stop();
+		trajectory.reset(target.getGlobalPosition());
+	}
 }
 
 void CableRobot::on_bounds_changed(float& val)
@@ -1215,6 +1233,8 @@ void CableRobot::on_vel_limit_changed(float& val)
 	motor_controller->get_motor()->set_velocity(val);	
 	// update the gui
 	info_vel_limit.set(ofToString(val));
+	// update the trajectory's max vel
+	trajectory.max_vel.set(val / 2.0);
 }
 
 /**

@@ -19,6 +19,8 @@ void ofApp::setup() {
 	origin.rotateAroundDeg(180, glm::vec3(1, 0, 0), glm::vec3(0, 0, 0));
 	origin.setGlobalPosition(500, 0, 0);
 	robots = new RobotController(positions, &origin);
+
+	on_set_camera_view(camera_top, camera_target, 2250);
 }
 
 //--------------------------------------------------------------

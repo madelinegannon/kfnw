@@ -31,6 +31,9 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	// update the gui
 	move_to.setMax(glm::vec2(bounds.getWidth(), -1 * bounds.getHeight()));
 	move_to.set(glm::vec2(bounds.getWidth()/2, -1 * bounds.getHeight()/2));
+	decel_radius.set(250);
+	accel_rate.set(1.25);
+	zone.set(10);
 
 	// setup the end effector control gizmo
 	gizmo_ee.setNode(*ee);
@@ -38,6 +41,8 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 
 	gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
 	gizmo_ee.setScaleAxisMask(IGizmo::AXIS_X);
+
+	get_status();
 }
 
 void CableRobot2D::update()
@@ -78,6 +83,59 @@ void CableRobot2D::draw_gui() {
 			robots[i]->panel.setPosition(panel.getPosition().x + 25, y);
 			robots[i]->panel.draw();
 			y += robots[i]->panel.getHeight();
+		}
+	}
+}
+
+void CableRobot2D::get_status() {
+
+	string state = "";
+	for (int i = 1; i < robots.size(); i++) {
+		state += robots[i]->status.get() + ", ";
+	}
+
+	// check if any of the motors are in E_STOP
+	if (state.find("E_STOP") != std::string::npos) {
+		// if so, put all in E_STOP
+		move_to_vel.set(false);
+		e_stop.set(true);		
+	}
+	// then check if any are not homed
+	else if (state.find("NOT_HOMED") != std::string::npos) {
+		status.set("NOT_HOMED");
+		panel.setBorderColor(mode_color_not_homed);
+	}
+	// then check if any are homing
+	else if (state.find("HOMING") != std::string::npos) {
+		status.set("HOMING");
+		panel.setBorderColor(mode_color_not_homed);
+
+		// check if we're done homing
+		bool val = true;
+		for (int i = 1; i < robots.size(); i++) {
+			if (!robots[i]->is_homed())
+				val = false;
+		}
+		if (val) {
+			enable.set(true);
+			status.set("ENABLED");
+		}
+	}
+	// then check if any are disabled
+	else if (state.find("DISABLED") != std::string::npos) {
+		status.set("DISABLED");
+		// don't trigger on_enable(false) in case any are not diabled
+		panel.setBorderColor(mode_color_disabled);
+	}
+	else {
+		// then check if all are enabled
+		bool val = true;
+		for (int i = 1; i < robots.size(); i++) {
+			if (!robots[i]->is_enabled())
+				val = false;
+		}
+		if (val) {
+			enable.set(true);
 		}
 	}
 }
@@ -146,11 +204,13 @@ void CableRobot2D::setup_gui()
 	params_motion.setName("Motion");
 	params_motion.add(accel_rate.set("Accel_Rate_(RPM/s)", 1, 0.01, 2.0));
 	params_motion.add(decel_radius.set("Decel_Radius", 100, 0, 500));
+	params_motion.add(zone.set("Zone", 5, 0, 100));
 
 	params_move.setName("Move");
 	params_move.add(move_to.set("Move_To", glm::vec2(0, 0), glm::vec2(0, 0), glm::vec2(750, 2000)));
-	params_move.add(move_to_pos.set("Move_To_Pos"));
-	params_move.add(move_to_vel.set("Move_to_Vel", false));
+	params_move.add(move_to_pos.set("Move_Pos"));
+	params_move.add(move_to_vel.set("Move_Vel", false));
+	params_move.add(params_motion);
 
 
 	// bind GUI listeners
@@ -159,16 +219,24 @@ void CableRobot2D::setup_gui()
 	btn_run_homing.addListener(this, &CableRobot2D::on_run_homing);
 	btn_run_shutdown.addListener(this, &CableRobot2D::on_run_shutdown);
 
+	vel_limit.addListener(this, &CableRobot2D::on_vel_limit_changed);
+	accel_limit.addListener(this, &CableRobot2D::on_accel_limit_changed);
+	bounds_min.addListener(this, &CableRobot2D::on_bounds_changed);
+	bounds_max.addListener(this, &CableRobot2D::on_bounds_changed);
+
 	base_offset.addListener(this, &CableRobot2D::on_base_offset_changed);
 	ee_offset.addListener(this, &CableRobot2D::on_ee_offset_changed);
 
 	move_to.addListener(this, &CableRobot2D::on_move_to_changed);
+	move_to_pos.addListener(this, &CableRobot2D::on_move_to_pos);
 	move_to_vel.addListener(this, &CableRobot2D::on_move_to_vel);
+	accel_rate.addListener(this, &CableRobot2D::on_accel_rate_changed);
+	decel_radius.addListener(this, &CableRobot2D::on_decel_radius_changed);
+	zone.addListener(this, &CableRobot2D::on_zone_changed);
 
 	panel.add(params_control);
 	panel.add(params_limits);
-	panel.add(params_kinematics);
-	panel.add(params_motion);
+	panel.add(params_kinematics);	
 	panel.add(params_move);
 	
 	robots[0]->panel.setWidthElements(gui_width - 25);
@@ -177,8 +245,6 @@ void CableRobot2D::setup_gui()
 	robots[1]->panel.setParent(&robots[0]->panel);
 	robots[1]->panel.setWidthElements(gui_width - 25);
 	robots[1]->panel.minimizeAll();
-
-	is_setup = true;
 }
 
 void CableRobot2D::update_gui(ofxPanel* _panel) {
@@ -201,6 +267,14 @@ void CableRobot2D::update_gui(ofxPanel* _panel) {
 
 void CableRobot2D::on_enable(bool& val)
 {
+	if (val) {
+		status.set("ENABLED");
+		panel.setBorderColor(mode_color_enabled);
+	}
+	else {
+		status.set("DISABLED");
+		panel.setBorderColor(mode_color_disabled);
+	}
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->on_enable(val);
 	}
@@ -208,6 +282,7 @@ void CableRobot2D::on_enable(bool& val)
 
 void CableRobot2D::on_e_stop(bool& val)
 {
+	stop();
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->on_e_stop(val);
 	}
@@ -215,9 +290,12 @@ void CableRobot2D::on_e_stop(bool& val)
 
 void CableRobot2D::on_run_homing()
 {
+	status.set("HOMING");
+	panel.setBorderColor(mode_color_not_homed);
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->on_run_homing();
 	}
+	get_status();
 }
 
 
@@ -226,6 +304,7 @@ void CableRobot2D::on_run_shutdown()
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->on_run_shutdown();
 	}
+	get_status();
 }
 
 void CableRobot2D::on_bounds_changed(float& val)
@@ -248,7 +327,7 @@ void CableRobot2D::on_bounds_changed(float& val)
 void CableRobot2D::on_vel_limit_changed(float& val)
 {
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->on_vel_limit_changed(val);
+		robots[i]->vel_limit.set(val);
 	}
 }
 
@@ -259,10 +338,17 @@ void CableRobot2D::on_ee_offset_changed(float& val)
 	robots[1]->get_target()->setPosition(offset, 0, 0);
 }
 
+void CableRobot2D::on_zone_changed(float& val)
+{
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->zone.set(val);
+	}
+}
+
 void CableRobot2D::on_move_to_pos()
 {
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->on_move_to();
+		robots[i]->on_move_to_pos();
 	}
 }
 
@@ -270,11 +356,25 @@ void CableRobot2D::on_move_to_vel(bool& val)
 {
 	if (val) {
 		for (int i = 0; i < robots.size(); i++) 
-			robots[i]->on_move_to_vel();
+			robots[i]->on_move_to_vel(val);
 	}
 	else{
 		for (int i = 0; i < robots.size(); i++)
 			robots[i]->stop();
+	}
+}
+
+void CableRobot2D::on_accel_rate_changed(float& val)
+{
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->accel_rate.set(val);
+	}
+}
+
+void CableRobot2D::on_decel_radius_changed(float& val)
+{
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->decel_radius.set(val);
 	}
 }
 
@@ -291,7 +391,7 @@ void CableRobot2D::on_base_offset_changed(float& val)
 void CableRobot2D::on_accel_limit_changed(float& val)
 {
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->on_accel_limit_changed(val);
+		robots[i]->accel_limit.set(val);
 	}
 }
 
@@ -347,14 +447,21 @@ void CableRobot2D::stop()
 
 void CableRobot2D::set_e_stop(bool val)
 {
+	if (val) {
+		status.set("E_STOP");
+		panel.setBorderColor(mode_color_estopped);
+		move_to_vel.set(false);
+	}
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->set_e_stop(val);
+		robots[i]->e_stop.set(val);
 	}
 }
 
 void CableRobot2D::set_enabled(bool val)
 {
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->set_enabled(val);
+		robots[i]->enable = &val;
 	}
+	string state = val ? "ENABLED" : "DISABLED";
+	status.set(state);
 }

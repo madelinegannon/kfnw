@@ -101,7 +101,11 @@ void Motor::disable()
 void Motor::stop(nodeStopCodes stop_type)
 {
 	ofLogNotice("Motor::stop") << "Stopping Motor " << ofToString(m_node->Info.Ex.Addr()) << ".";
+	m_node->Motion.NodeStop(stop_type);		// this should clear buffer and stop, but not working with velocity move
 	m_node->Motion.NodeStop(stop_type);
+	m_node->Motion.MoveVelStart(0);			// ensure stop by setting velocity to zero
+	m_node->Motion.MoveVelStart(0);
+	m_node->Status.RT.Refresh();
 }
 
 void Motor::set_e_stop(bool val)
@@ -224,6 +228,16 @@ void Motor::move_velocity(float target_vel)
 	m_node->Status.RT.Refresh();
 	if (m_node->Status.RT.Value().cpm.MoveBufAvail)
 		m_node->Motion.MoveVelStart(target_vel);
+	else if (target_vel == 0) {
+		ofLogNotice("Motor::move_velocity") << "stopping due to 0 RPM." << endl;
+		stop();
+	}
+}
+
+bool Motor::is_in_motion()
+{
+	m_node->Status.RT.Refresh();
+	return m_node->Status.RT.Value().cpm.InMotion != 0;
 }
 
 bool Motor::is_enabled()
