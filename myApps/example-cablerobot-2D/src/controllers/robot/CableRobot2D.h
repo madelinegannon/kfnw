@@ -5,6 +5,7 @@
 #include "ofxGizmo.h"
 #include "ofxXmlSettings.h"
 #include "CableRobot.h"
+#include "Trajectory.h"
 
 
 class CableRobot2D 
@@ -13,6 +14,10 @@ private:
 
 	int id;
 	vector<CableRobot*> robots;
+
+	vector<Trajectory*> trajectories_2D;
+	void update_trajectories_2D();
+	void draw_trajectories_2D();
 
 	ofNode* origin;     // World reference frame 
 	ofNode* ee;			// World reference 
@@ -66,6 +71,7 @@ public:
 	void on_run_homing();
 	void on_run_shutdown();
 	void on_bounds_changed(float& val);
+	void on_torque_limits_changed(float& val);
 	void on_vel_limit_changed(float& val);
 	void on_accel_limit_changed(float& val);
 
@@ -75,8 +81,6 @@ public:
 	void on_move_to_changed(glm::vec2& val);
 	void on_move_to_pos();
 	void on_move_to_vel(bool& val);
-	void on_accel_rate_changed(float& val);
-	void on_decel_radius_changed(float& val);
 	void on_zone_changed(float& val);
 
 	ofxPanel panel;
@@ -92,6 +96,8 @@ public:
 	ofParameter<float> accel_limit;
 	ofParameter<float> bounds_min;
 	ofParameter<float> bounds_max;
+	ofParameter<float> torque_min;
+	ofParameter<float> torque_max;
 
 	ofParameterGroup params_kinematics;
 	ofParameter<float> base_offset;

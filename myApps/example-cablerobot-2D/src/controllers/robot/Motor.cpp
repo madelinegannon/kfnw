@@ -45,6 +45,7 @@ void Motor::set_motion_params(float limit_vel, float limit_accel, int limit_trq_
 	// Set the user units to RPM and RPM/s
 	m_node->VelUnit(INode::RPM);
 	m_node->AccUnit(INode::RPM_PER_SEC);
+	m_node->TrqUnit(INode::PCT_MAX);
 	
 	uint32_t jerk_limit = 3;
 
@@ -54,6 +55,9 @@ void Motor::set_motion_params(float limit_vel, float limit_accel, int limit_trq_
 	m_node->Limits.PosnTrackingLimit.Value(m_node->Info.PositioningResolution.Value() / 4);
 	m_node->Limits.TrqGlobal.Value(limit_trq_percent);
 
+	m_node->Motion.TrqMeasured.AutoRefresh(true);
+	m_node->Motion.VelMeasured.AutoRefresh(true);
+	m_node->Motion.PosnMeasured.AutoRefresh(true);
 }
 
 void Motor::enable()
@@ -234,7 +238,7 @@ void Motor::move_velocity(float target_vel)
 	}
 }
 
-bool Motor::is_in_motion()
+bool Motor::is_moving()
 {
 	m_node->Status.RT.Refresh();
 	return m_node->Status.RT.Value().cpm.InMotion != 0;

@@ -4,6 +4,9 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 {
 	robots.push_back(top_left);
 	robots.push_back(top_right);
+	trajectories_2D.push_back(new Trajectory());
+	trajectories_2D.push_back(new Trajectory());
+
 	this->origin = _origin;
 	this->id = id;
 
@@ -52,7 +55,19 @@ void CableRobot2D::update()
 	bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
 
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->update();
+		// monitor the torque and stop all motors if unexpected value
+		if (robots[i]->is_torque_in_limits())
+			robots[i]->update();
+		else {
+			if (robots[i]->is_moving()) {
+				ofLogNotice("CableRobot2D::update()") << "TORQUE OUT OF RANGE: Stopping Robots " << endl;
+				stop();
+			}
+		}
+	}
+
+	if (move_to_vel) {
+		update_trajectories_2D();
 	}
 }
 
@@ -171,6 +186,42 @@ void CableRobot2D::key_pressed(int key)
 	}
 }
 
+void CableRobot2D::update_trajectories_2D()
+{
+	for (int i = 0; i < trajectories_2D.size(); i++) {
+
+		// get the distance to the target and the distance to the trajectory's last target
+		float dist = glm::distance(robots[i]->get_tangent().getGlobalPosition(), robots[i]->get_target()->getGlobalPosition());
+
+		// check if we need to add a target to the trajectory
+		bool add_target = false;
+		if (trajectories_2D[i]->get_num_targets() == 0)
+			add_target = true;
+		else {
+			// add the target to the trajectory path, but don't add small moves
+			float dist_to_last_target = glm::distance(robots[i]->get_tangent().getGlobalPosition(), trajectories_2D[i]->get_last_target());
+			float dist_diff = abs(dist - dist_to_last_target);
+			if (abs(dist - dist_to_last_target) > 0.5)
+				add_target = true;
+		}
+
+		if (add_target) {
+			trajectories_2D[i]->add_target(robots[i]->get_target()->getGlobalPosition());
+		}
+
+		trajectories_2D[i]->update();
+	}
+}
+
+void CableRobot2D::draw_trajectories_2D()
+{
+	ofPushStyle();
+	for (int i = 0; i < trajectories_2D.size(); i++) {
+		trajectories_2D[i]->draw();
+	}
+	ofPopStyle();
+}
+
 void CableRobot2D::setup_gui()
 {
 	mode_color_estopped		= robots[0]->mode_color_estopped;
@@ -196,6 +247,8 @@ void CableRobot2D::setup_gui()
 	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 200, 0, 1000));
 	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 2000));
 	params_limits.add(bounds_max.set("Bounds_Max", 2000, 0, 2000));
+	params_limits.add(torque_min.set("Torque_Min", -5, -5, 10));
+	params_limits.add(torque_max.set("Torque_Max", 25, 0, 100));
 
 	params_kinematics.setName("Kinematics");
 	params_kinematics.add(base_offset.set("Base_Offset", 1500, 0, 3000));
@@ -204,7 +257,7 @@ void CableRobot2D::setup_gui()
 	params_motion.setName("Motion");
 	params_motion.add(accel_rate.set("Accel_Rate_(RPM/s)", 1, 0.01, 2.0));
 	params_motion.add(decel_radius.set("Decel_Radius", 100, 0, 500));
-	params_motion.add(zone.set("Zone", 5, 0, 100));
+	params_motion.add(zone.set("Zone", 37.5, 0, 100));
 
 	params_move.setName("Move");
 	params_move.add(move_to.set("Move_To", glm::vec2(0, 0), glm::vec2(0, 0), glm::vec2(750, 2000)));
@@ -223,6 +276,8 @@ void CableRobot2D::setup_gui()
 	accel_limit.addListener(this, &CableRobot2D::on_accel_limit_changed);
 	bounds_min.addListener(this, &CableRobot2D::on_bounds_changed);
 	bounds_max.addListener(this, &CableRobot2D::on_bounds_changed);
+	torque_min.addListener(this, &CableRobot2D::on_torque_limits_changed);
+	torque_max.addListener(this, &CableRobot2D::on_torque_limits_changed);
 
 	base_offset.addListener(this, &CableRobot2D::on_base_offset_changed);
 	ee_offset.addListener(this, &CableRobot2D::on_ee_offset_changed);
@@ -230,8 +285,6 @@ void CableRobot2D::setup_gui()
 	move_to.addListener(this, &CableRobot2D::on_move_to_changed);
 	move_to_pos.addListener(this, &CableRobot2D::on_move_to_pos);
 	move_to_vel.addListener(this, &CableRobot2D::on_move_to_vel);
-	accel_rate.addListener(this, &CableRobot2D::on_accel_rate_changed);
-	decel_radius.addListener(this, &CableRobot2D::on_decel_radius_changed);
 	zone.addListener(this, &CableRobot2D::on_zone_changed);
 
 	panel.add(params_control);
@@ -338,10 +391,15 @@ void CableRobot2D::on_ee_offset_changed(float& val)
 	robots[1]->get_target()->setPosition(offset, 0, 0);
 }
 
+/**
+ * @brief Change the precision zone to the robot's trajectory.
+ * 
+ * @param (float)  val: radius of precision zone
+ */
 void CableRobot2D::on_zone_changed(float& val)
 {
 	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->zone.set(val);
+		robots[i]->set_zone(val);
 	}
 }
 
@@ -354,29 +412,10 @@ void CableRobot2D::on_move_to_pos()
 
 void CableRobot2D::on_move_to_vel(bool& val)
 {
-	if (val) {
-		for (int i = 0; i < robots.size(); i++) 
-			robots[i]->on_move_to_vel(val);
-	}
-	else{
-		for (int i = 0; i < robots.size(); i++)
-			robots[i]->stop();
-	}
+	for (int i = 0; i < robots.size(); i++)
+		robots[i]->on_move_to_vel(val);
 }
 
-void CableRobot2D::on_accel_rate_changed(float& val)
-{
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->accel_rate.set(val);
-	}
-}
-
-void CableRobot2D::on_decel_radius_changed(float& val)
-{
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->decel_radius.set(val);
-	}
-}
 
 void CableRobot2D::on_base_offset_changed(float& val)
 {
@@ -392,6 +431,14 @@ void CableRobot2D::on_accel_limit_changed(float& val)
 {
 	for (int i = 0; i < robots.size(); i++) {
 		robots[i]->accel_limit.set(val);
+	}
+}
+
+void CableRobot2D::on_torque_limits_changed(float& val)
+{
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->torque_min.set(torque_min.get());
+		robots[i]->torque_max.set(torque_max.get());
 	}
 }
 

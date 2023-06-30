@@ -162,7 +162,7 @@ void Trajectory::update_current_vel() {
     accel = kp * (desired_pos - curr_pos) + kd * (desired_vel - curr_vel);
 
     // update the current velocity (convert accel from m/s/s to m/s)
-    time_diff = ofGetElapsedTimef() - time_last;
+    time_diff = 1 / 60.0;// ofGetElapsedTimef() - time_last; // <-- dynamic time_diff causing instability with multiple robots
     get_max_dist_from_vel(max_vel.get());
     curr_vel = curr_vel + accel * time_diff;
     time_last = ofGetElapsedTimef();

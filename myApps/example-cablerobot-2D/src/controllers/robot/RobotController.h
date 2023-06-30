@@ -98,6 +98,7 @@ public:
     ofxPanel panel;
     ofParameter<string> status;
     ofParameter<void> check_status;
+    ofParameter<void> save_settings_files;
 
     ofParameterGroup params_info;
     ofParameter<string> com_ports;
@@ -112,6 +113,7 @@ public:
     // GUI Listeners
     void on_synchronize(bool& val);
     void on_ee_offset_changed(float& val);
+    void on_save_settings();
 
 
     ofColor mode_color_disabled;

@@ -22,7 +22,7 @@ private:
     float accel_max = 800;      // RPM_PER_SEC
     float position_min = 0;     // absolute position in mm
     float position_max = 2000;  // absolute position in mm
-    float position_shutdown = 2148;  // absolute position in mm
+    float position_shutdown = 2140;  // absolute position in mm
 
     bool is_in_bounds_absolute(float target_pos_absolute);
     bool is_in_bounds_relative(float target_pos_relative);
@@ -38,13 +38,9 @@ private:
     ofNode target = ofNode();      // desired ee position
     ofNode actual = ofNode();      // actual ee position
 
-    //vector<glm::vec3> path;        // store the target trajectory
-    glm::vec3 heading_actual;
-
-    //ofPolyline trajectory;
     Trajectory trajectory;
     void update_trajectory();
-    glm::vec3 get_target_from_distance(float dist);
+   
 
 
     MotorController* motor_controller;
@@ -127,6 +123,7 @@ public:
     ofNode* get_tangent_ptr() { return &tangent; }
     ofNode* get_target() { return &target; }
     void set_ee(ofNode* _ee) { this->ee = _ee; }
+    ofPolyline trajectory_world_coords;
 
     ofNode get_base() { return base; }
     void set_base_position(glm::vec3 pos) { base.setPosition(pos); }
@@ -134,6 +131,8 @@ public:
     bool is_estopped();
     bool is_homed();
     bool is_enabled();
+    bool is_moving();
+    bool is_torque_in_limits();
     bool run_homing_routine(int timeout=20);
 
     void move_position(float target_pos, bool absolute = true);
@@ -146,6 +145,8 @@ public:
     void set_enabled(bool val);
 
     void jog_down(bool override = false);
+
+    void set_zone(float val);
 
     // GUI and Listeners
     void on_enable(bool& val);
@@ -174,13 +175,9 @@ public:
     ofParameter<string> info_position_cnt;
     ofParameter<string> info_vel_limit;
     ofParameter<string> info_accel_limit;
-    ofParameter<string> info_target_velocity;
-
-    ofParameterGroup params_motion;
-    ofParameter<float> accel_rate;
-    ofParameter<float> decel_radius;
-    ofParameter<float> zone;
-    bool use_trajectory = true;
+    ofParameter<string> info_velocity_target;
+    ofParameter<string> info_velocity_actual;
+    ofParameter<string> info_torque_actual;
 
     ofParameterGroup params_move;
     ofParameter<float> move_to;
@@ -188,10 +185,12 @@ public:
     ofParameter<bool> move_to_vel;
 
     ofParameterGroup params_limits;
-    ofParameter<float> vel_limit = 30;
     ofParameter<float> accel_limit = 200;
+    ofParameter<float> vel_limit = 30;
     ofParameter<float> bounds_min = 100;
     ofParameter<float> bounds_max = 1800;
+    ofParameter<float> torque_min = -3.0;
+    ofParameter<float> torque_max = 25.0;
 
 
     //ofParameter<ofVec3f> position_world;

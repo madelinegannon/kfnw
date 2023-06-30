@@ -325,6 +325,7 @@ void RobotController::setup_gui()
 	panel.setPosition(10, 15);
 	panel.add(status.set("Status", state_names[0]));
 	panel.add(check_status.set("Check_Status"));
+	panel.add(save_settings_files.set("Save_Settings"));
 	
 	params_info.setName("System_Info");
 	params_info.add(com_ports.set("COM_Ports", ""));
@@ -338,6 +339,7 @@ void RobotController::setup_gui()
 	
 
 	check_status.addListener(this, &RobotController::check_for_system_ready);
+	save_settings_files.addListener(this, &RobotController::on_save_settings);
 	//is_synchronized.addListener(this, &RobotController::on_synchronize);
 	//ee_offset.addListener(this, &RobotController::on_ee_offset_changed);
 
@@ -577,6 +579,11 @@ void RobotController::on_synchronize(bool& val)
 	//		}
 	//	}
 	//}
+}
+
+void RobotController::on_save_settings()
+{
+	save_settings();
 }
 
 //void RobotController::on_ee_offset_changed(float& val)
