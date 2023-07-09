@@ -34,9 +34,10 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	// update the gui
 	move_to.setMax(glm::vec2(bounds.getWidth(), -1 * bounds.getHeight()));
 	move_to.set(glm::vec2(bounds.getWidth()/2, -1 * bounds.getHeight()/2));
-	decel_radius.set(250);
-	accel_rate.set(1.25);
-	zone.set(10);
+	zone.set(20);
+	ee_offset.set(40);
+	vel_limit.set(30);
+	bounds_max.set(3000);
 
 	// setup the end effector control gizmo
 	gizmo_ee.setNode(*ee);
@@ -56,8 +57,28 @@ void CableRobot2D::update()
 
 	for (int i = 0; i < robots.size(); i++) {
 		// monitor the torque and stop all motors if unexpected value
-		if (robots[i]->is_torque_in_limits())
+		if (robots[i]->is_torque_in_limits()) {
+			// compensate for lateral direction
+			float x = ee->getPosition().x;		// get local x value
+			float x_offset = 0;
+			if (i == 0) {					// shorten motor 0 when we're on the right side
+				if (x >= bounds.getWidth() / 2)
+					x_offset = ofMap(x, bounds.getWidth()/2, bounds.getWidth(), 0, -x_offset_max.get(), true);
+				else
+					x_offset = 0;
+			}
+			else if (i == 1) {				// shorten motor 1 when we're on the left side
+				if (x < bounds.getWidth() / 2)
+					x_offset = ofMap(x, 0, bounds.getWidth()/2, -x_offset_max.get(), 0, true);
+				else
+					x_offset = 0;
+			}
+			//cout << i << ": x_offset: " << x_offset << endl;
+			robots[i]->prev_planar_compensation_x = robots[i]->planar_compensation_x.get();
+			robots[i]->planar_compensation_x.set(x_offset);
+
 			robots[i]->update();
+		}
 		else {
 			if (robots[i]->is_moving()) {
 				ofLogNotice("CableRobot2D::update()") << "TORQUE OUT OF RANGE: Stopping Robots " << endl;
@@ -245,18 +266,19 @@ void CableRobot2D::setup_gui()
 	params_limits.setName("Limits");
 	params_limits.add(vel_limit.set("Vel_Limit_(RPM)", 30, 0, 300));
 	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 200, 0, 1000));
-	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 2000));
-	params_limits.add(bounds_max.set("Bounds_Max", 2000, 0, 2000));
+	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 3000));
+	params_limits.add(bounds_max.set("Bounds_Max", 4000, 0, 5000));
 	params_limits.add(torque_min.set("Torque_Min", -5, -5, 10));
-	params_limits.add(torque_max.set("Torque_Max", 25, 0, 100));
+	params_limits.add(torque_max.set("Torque_Max", 40, 0, 100));
 
 	params_kinematics.setName("Kinematics");
-	params_kinematics.add(base_offset.set("Base_Offset", 1500, 0, 3000));
-	params_kinematics.add(ee_offset.set("EE_Offset", 0, 0, 750));
+	params_kinematics.add(base_offset.set("Base_Offset", 2500, 0, 3000));
+	params_kinematics.add(ee_offset.set("EE_Offset", 70, 0, 750));
+	params_kinematics.add(x_offset_max.set("X_Offset_Max", 0, 0, 1000));
 
 	params_motion.setName("Motion");
-	params_motion.add(accel_rate.set("Accel_Rate_(RPM/s)", 1, 0.01, 2.0));
-	params_motion.add(decel_radius.set("Decel_Radius", 100, 0, 500));
+	//params_motion.add(accel_rate.set("Accel_Rate_(RPM/s)", 1, 0.01, 2.0));
+	//params_motion.add(decel_radius.set("Decel_Radius", 100, 0, 500));
 	params_motion.add(zone.set("Zone", 37.5, 0, 100));
 
 	params_move.setName("Move");
@@ -281,6 +303,7 @@ void CableRobot2D::setup_gui()
 
 	base_offset.addListener(this, &CableRobot2D::on_base_offset_changed);
 	ee_offset.addListener(this, &CableRobot2D::on_ee_offset_changed);
+	x_offset_max.addListener(this, &CableRobot2D::on_x_offset_max_changed);
 
 	move_to.addListener(this, &CableRobot2D::on_move_to_changed);
 	move_to_pos.addListener(this, &CableRobot2D::on_move_to_pos);
@@ -389,6 +412,10 @@ void CableRobot2D::on_ee_offset_changed(float& val)
 	float offset =  val;
 	robots[0]->get_target()->setPosition(-offset, 0, 0);
 	robots[1]->get_target()->setPosition(offset, 0, 0);
+}
+
+void CableRobot2D::on_x_offset_max_changed(float& val)
+{
 }
 
 /**

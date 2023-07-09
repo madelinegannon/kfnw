@@ -192,6 +192,9 @@ public:
     ofParameter<float> torque_min = -3.0;
     ofParameter<float> torque_max = 25.0;
 
+    ofParameter<float> planar_compensation_x = 0;
+    //void on_planar_compensation_x_changed(float& val);
+    float prev_planar_compensation_x = 0;
 
     //ofParameter<ofVec3f> position_world;
 

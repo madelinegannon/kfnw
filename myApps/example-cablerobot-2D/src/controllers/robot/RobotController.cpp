@@ -153,7 +153,7 @@ bool RobotController::initialize()
 				// Create each cable robot and set its world position
 				for (size_t j = 0; j < myPort.NodeCount(); j++) {
 					// Store each individual robot, no matter the configuration
-					robots.push_back(new CableRobot(*myMgr, &myPort.Nodes(j)));
+					robots.push_back(new CableRobot(*myMgr, &myPort.Nodes(j), this->load_robots_from_file));
 					if (system_config == Configuration::ONE_D) {
 						// configure for 1D application
 						robots.back()->configure(origin, bases[j]);
@@ -488,6 +488,17 @@ void RobotController::set_origin(glm::vec3 pos, glm::quat orient)
 {
 	origin->setGlobalPosition(pos);
 	origin->setGlobalOrientation(orient);
+}
+
+void RobotController::set_targets(glm::vec3 target)
+{
+	if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++) {
+			ofNode node;
+			node.setPosition(target);
+			robots_2D[i]->get_gizmo()->setNode(node);
+		}
+	}
 }
 
 void RobotController::update_gizmos()

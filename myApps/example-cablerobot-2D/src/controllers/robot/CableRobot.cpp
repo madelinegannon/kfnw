@@ -12,9 +12,6 @@ CableRobot::CableRobot(SysManager& SysMgr, INode* node, bool load_config_file)
 	if (load_config_file) {
 		load_config_from_file();
 	}
-	else {
-		save_config_to_file();
-	}
 }
 
 CableRobot::CableRobot(glm::vec3 base)
@@ -77,6 +74,10 @@ void CableRobot::configure(ofNode* _origin, ofNode* _ee, glm::vec3 base, Groove 
 	// set the trajectory starting point
 	trajectory.reset(target.getGlobalPosition());
 	trajectory.desired_pos.set(target.getGlobalPosition());
+
+	if (load_config_file) {
+		load_config_from_file();
+	}
 }
 
 void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
@@ -138,6 +139,10 @@ void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
 	//trajectory.reset();
 	trajectory.curr_pos.set(target.getGlobalPosition());
 	trajectory.desired_pos.set(target.getGlobalPosition());
+
+	if (load_config_file) {
+		load_config_from_file();
+	}
 }
 
 float CableRobot::get_position_actual()
@@ -765,6 +770,11 @@ void CableRobot::update_trajectory()
 		trajectory_world_coords.removeVertex(0);
 	}
 
+	// compensate for x-axis tilt
+	float diff = planar_compensation_x.get() - prev_planar_compensation_x;
+	glm::vec3 x_tilt_compensation = glm::vec3(0, -diff, 0);
+	target.setGlobalPosition(target.getGlobalPosition() + x_tilt_compensation);
+
 	// get the distance to the target and the distance to the trajectory's last target
 	float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
 
@@ -783,8 +793,9 @@ void CableRobot::update_trajectory()
 	if (add_target){
 		// get the correct sign for the distance target
 		tangent.getGlobalPosition().y > target.getGlobalPosition().y ? dist *= -1 : dist *= 1;
-		// create a 1D target for the trajectory
+		// convert the distance into a 1D target for the trajectory
 		glm::vec3 trajectory_target = glm::vec3(tangent.getGlobalPosition());
+		// compensate for lateral direction
 		trajectory_target.y += dist;
 		// add to the trajectory
 		trajectory.add_target(trajectory_target);
@@ -830,10 +841,10 @@ void CableRobot::setup_gui()
 	params_limits.setName("Limits");
 	params_limits.add(vel_limit.set("Vel_Limit_(RPM)", 100, 0, 300));
 	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 800, 0, 1000));
-	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 2000));
-	params_limits.add(bounds_max.set("Bounds_Max", 2000, 0, 2000));
+	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 3000));
+	params_limits.add(bounds_max.set("Bounds_Max", 3000, 0, 3000));
 	params_limits.add(torque_min.set("Torque_Min", -5, -5, 10));
-	params_limits.add(torque_max.set("Torque_Max", 25, 0, 100));
+	params_limits.add(torque_max.set("Torque_Max", 40, 0, 100));
 
 	params_jog.setName("Jogging");
 	params_jog.add(jog_vel.set("Jog_Vel", 30, 0, 200));			// RPM

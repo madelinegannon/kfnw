@@ -19,12 +19,19 @@ void ofApp::setup() {
 	origin.rotateAroundDeg(180, glm::vec3(1, 0, 0), glm::vec3(0, 0, 0));
 	origin.setGlobalPosition(500, 0, 0);
 	robots = new RobotController(positions, &origin);
+	motion = new MotionController();
+
 
 	on_set_camera_view(camera_top, camera_target, 2250);
 }
 
 //--------------------------------------------------------------
 void ofApp::update() {
+
+	motion->update();
+
+	if (motion->play.get())
+		robots->set_targets(motion->get_targets());
 
 	// disable tha camera if we are interacting with a gizmo
 	disable_camera(robots->disable_camera());
@@ -53,6 +60,8 @@ void ofApp::draw()
 	ofLine(glm::vec3(0, 0, 0), glm::vec3(-10000, 0, 0));
 	ofPopStyle();
 
+	// draw the motion controller
+	motion->draw();
 
 	// draw the robots
 	robots->draw();
@@ -65,6 +74,7 @@ void ofApp::draw()
 
 	// draw 2D
 	robots->draw_gui();
+	motion->panel.draw();
 }
 
 //--------------------------------------------------------------

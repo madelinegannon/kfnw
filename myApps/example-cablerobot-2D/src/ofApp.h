@@ -6,6 +6,7 @@
 #include "ofxGizmo.h"
 
 #include "controllers/robot/RobotController.h"
+#include "controllers/motion/MotionController.h"
 
 #define DEBUG
 
@@ -30,6 +31,7 @@ public:
 	void gotMessage(ofMessage msg);
 
 	RobotController* robots;
+	MotionController* motion;
 	ofNode origin;
 	ofEasyCam cam;
 

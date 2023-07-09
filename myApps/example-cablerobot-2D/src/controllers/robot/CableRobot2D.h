@@ -102,6 +102,8 @@ public:
 	ofParameterGroup params_kinematics;
 	ofParameter<float> base_offset;
 	ofParameter<float> ee_offset;
+	ofParameter<float> x_offset_max;
+	void on_x_offset_max_changed(float& val);
 
 	ofParameterGroup params_motion;
 	ofParameter<float> accel_rate;

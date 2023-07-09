@@ -95,6 +95,8 @@ public:
     void set_origin(glm::vec3 pos, glm::quat orient=glm::quat(0,0,0,1));
     void set_ee(glm::vec3 pos, glm::quat orient = glm::quat(0, 0, 0, 1));
 
+    void set_targets(glm::vec3 target);
+
     ofxPanel panel;
     ofParameter<string> status;
     ofParameter<void> check_status;
