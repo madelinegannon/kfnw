@@ -9,10 +9,13 @@ void ofApp::setup() {
 	setup_camera();
 
 	int count = 2;
-	int offset = 914.4; // mm
+	int offset = 2500; // mm
 	vector<glm::vec3> positions;
 	for (int i = 0; i < count; i++) {
 		positions.push_back(glm::vec3(offset * i, 0, 0));
+	}
+	for (int i = 0; i < count; i++) {
+		positions.push_back(glm::vec3(offset * i, 0, -75));
 	}
 
 	// set the world coordinate system of the robots (flip to match screen coord axes)

@@ -115,7 +115,7 @@ void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
 	if (ee->getGlobalPosition() == glm::vec3() && ee->getGlobalOrientation() == glm::quat()) {
 		ee = new ofNode();
 		ee->setParent(tangent);
-		ee->setPosition(0, -1 * (bounds_max.get() - bounds_min.get()) / 2, 0);
+		ee->setPosition(0, -1 * (bounds_max.get() - bounds_min.get()) / 2, tangent.getGlobalPosition().z);
 		target.setParent(*ee);
 
 		gizmo_ee.setNode(*ee);
@@ -123,18 +123,23 @@ void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
 		gizmo_ee.setTranslationAxisMask(IGizmo::AXIS_Y);
 		gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
 	}
-	// otherwise, parent the target to the external ee
+	// otherwise, parent the target to the external ee and offset by ee_offset value
 	else {
-		// set the target position to the actual position
-		float dist_actual = get_position_actual();
-		//actual.setPosition(0, -1 * dist_actual, 0);
 		target.setParent(*ee);
-		float x = this->base.getPosition().x + tangent.getPosition().x - ee->getPosition().x;
-		target.setPosition(x, 0, 0);// ee->getPosition().z);
+		target.setGlobalPosition(ee->getGlobalPosition());
+		if (motor_controller->get_motor_id() % 2 == 0)		
+			target.setPosition(-40, 0, 0);				// <-- ee_offset value hard coded offset at the moment : (
+		else
+			target.setPosition(40, 0, 0);
+
 
 		gizmo_ee.setNode(*ee);
 		gizmo_ee.setDisplayScale(.5);
 		gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
+
+		ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " target global position: " << ofToString(target.getGlobalPosition());
+		ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " ee global position: " << ofToString(ee->getGlobalPosition());
+		ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " gizmo_ee global position: " << ofToString(gizmo_ee.getTranslation()) << endl;
 	}
 	//trajectory.reset();
 	trajectory.curr_pos.set(target.getGlobalPosition());
@@ -227,7 +232,7 @@ void CableRobot::set_bounds(float min, float max)
 bool CableRobot::is_torque_in_limits()
 {
 	auto torque_measured = motor_controller->get_motor()->get()->Motion.TrqMeasured.Value();
-	info_torque_actual.set(ofToString(torque_measured));
+	//info_torque_actual.set(ofToString(torque_measured));
 	if (torque_measured > torque_max.get() || torque_measured < torque_min.get()) {
 		ofLogWarning(" CableRobot::is_torque_in_limits()") << "\tRobot " << ofToString(motor_controller->get_motor_id()) << " is OUT OF TORQUE RANGE with value of " << ofToString(torque_measured) << endl;
 		return false;
@@ -455,7 +460,9 @@ void CableRobot::update()
 		}
 	}
 	else {
-
+		//ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " target global position: " << ofToString(target.getGlobalPosition());
+		//ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " ee global position: " << ofToString(ee->getGlobalPosition());
+		//ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " gizmo_ee global position: " << ofToString(gizmo_ee.getTranslation()) << endl;
 	}
 
 	// update the actual positions
@@ -463,7 +470,7 @@ void CableRobot::update()
 	actual.setPosition(0, -1 * dist_actual, 0);
 
 	// update the gui
-	info_velocity_actual.set(ofToString(motor_controller->get_motor()->get()->Motion.VelMeasured.Value()));
+	//info_velocity_actual.set(ofToString(motor_controller->get_motor()->get()->Motion.VelMeasured.Value()));
 }
 
 void CableRobot::draw()
@@ -503,20 +510,23 @@ void CableRobot::draw()
 	ofSetColor(ofColor::red, 200);
 	ofDrawEllipse(target.getGlobalPosition(), 50, 50);
 	
-	// draw distance to target
-	ofSetColor(60);
-	string msg = ofToString(glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition())) + " (mm)";
-	auto pt = target.getGlobalPosition();
-	int offset = 50;
-	if (motor_controller->get_motor_id() % 2 == 0 ){
-		offset *= -5.5;
-	}
-	ofDrawBitmapString(msg, pt.x + offset, pt.y - 10, pt.z);
+
 
 	if (debugging) {
 		// draw the 1D trajectory and actual position
 		trajectory.draw();
 		draw_cable(tangent.getGlobalPosition(), actual.getGlobalPosition());
+
+		// draw distance to target
+		ofSetColor(60);
+		string msg = ofToString(glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition())) + " (mm)";
+		auto pt = target.getGlobalPosition();
+		int offset = 50;
+		if (motor_controller->get_motor_id() % 2 == 0) {
+			offset *= -5.5;
+		}
+		ofDrawBitmapString(msg, pt.x + offset, pt.y - 10, pt.z);
+
 		// draw distance to actual
 		msg = ofToString(glm::distance(tangent.getGlobalPosition(), actual.getGlobalPosition())) + " (mm)";
 		pt = (tangent.getGlobalPosition() + actual.getGlobalPosition()) / 2.0;
@@ -543,8 +553,8 @@ void CableRobot::draw()
 
 
 	// update gui
-	info_position_mm.set(ofToString(get_position_actual()));
-	info_position_cnt.set(ofToString(motor_controller->get_motor()->get_position(false)));	// for debugging
+	//info_position_mm.set(ofToString(get_position_actual()));
+	//info_position_cnt.set(ofToString(motor_controller->get_motor()->get_position(false)));	// for debugging
 }
 
 void CableRobot::update_gizmo()
@@ -770,10 +780,10 @@ void CableRobot::update_trajectory()
 		trajectory_world_coords.removeVertex(0);
 	}
 
-	// compensate for x-axis tilt
-	float diff = planar_compensation_x.get() - prev_planar_compensation_x;
-	glm::vec3 x_tilt_compensation = glm::vec3(0, -diff, 0);
-	target.setGlobalPosition(target.getGlobalPosition() + x_tilt_compensation);
+	//// compensate for x-axis tilt
+	//float diff = planar_compensation_x.get() - prev_planar_compensation_x;
+	//glm::vec3 x_tilt_compensation = glm::vec3(0, -diff, 0);
+	//target.setGlobalPosition(target.getGlobalPosition() + x_tilt_compensation);
 
 	// get the distance to the target and the distance to the trajectory's last target
 	float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
@@ -786,7 +796,7 @@ void CableRobot::update_trajectory()
 		// add the target to the trajectory path, but don't add small moves
 		float dist_to_last_target = glm::distance(tangent.getGlobalPosition(), trajectory.get_last_target());
 		float dist_diff = abs(dist - dist_to_last_target);
-		if (abs(dist - dist_to_last_target) > 0.5)
+		if (abs(dist - dist_to_last_target) > 1)
 			add_target = true;
 	}
 
@@ -1053,7 +1063,7 @@ void CableRobot::move_velocity_rpm(float rpm)
 		motor_controller->get_motor()->move_velocity(rpm);
 
 		// update the gui
-		info_velocity_target.set(ofToString(rpm));
+		//info_velocity_target.set(ofToString(rpm));
 	}
 	else {
 		string msg = "";

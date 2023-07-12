@@ -23,6 +23,8 @@ private:
 	ofNode* ee;			// World reference 
 	ofxGizmo gizmo_ee;
 	
+	glm::vec3 base_top_left;
+	glm::vec3 base_top_right;
 	ofRectangle bounds;
 
 	void setup_gui();

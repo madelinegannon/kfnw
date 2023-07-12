@@ -1,11 +1,14 @@
 #include "CableRobot2D.h"
 
-CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, glm::vec3 base_top_left, glm::vec3 base_top_right,int id)
+CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, glm::vec3 base_top_left, glm::vec3 base_top_right, int id)
 {
 	robots.push_back(top_left);
 	robots.push_back(top_right);
 	trajectories_2D.push_back(new Trajectory());
 	trajectories_2D.push_back(new Trajectory());
+
+	this->base_top_left = base_top_left;
+	this->base_top_right = base_top_right;
 
 	this->origin = _origin;
 	this->id = id;
@@ -14,14 +17,28 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	
 	// Setup the end effector
 	this->ee = new ofNode();
-	this->ee->setParent(*_origin);
+	//cout << "robot base world pos: "
+	this->ee->setParent(top_left->get_base());
+	//this->ee->setParent(*_origin);
 	float h = robots[0]->bounds_max - robots[0]->bounds_min;
-	glm::vec3 pos = glm::vec3((base_top_left.x + base_top_right.x) / 2.0, - h / 2, 0);
-	this->ee->setPosition(pos);
+	glm::vec3 pos = glm::vec3((base_top_left.x + base_top_right.x) / 2.0, - h / 2, top_left->get_base().getGlobalPosition().z);
+	this->ee->setGlobalPosition(pos);
+
+	// setup the end effector control gizmo
+	gizmo_ee.setNode(*ee);
+	gizmo_ee.setDisplayScale(.5);
+
+	gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
+	gizmo_ee.setScaleAxisMask(IGizmo::AXIS_X);
+
+	cout << "ee position: " << ofToString(ee->getGlobalPosition()) << endl;
+	cout << "gizmo position: " << ofToString(gizmo_ee.getTranslation()) << endl;
 	
 	// Configure the robots with one end effector
 	robots[0]->configure(_origin, base_top_left, this->ee);
 	robots[1]->configure(_origin, base_top_right, this->ee);
+
+	cout << "gizmo position AFTER: " << ofToString(gizmo_ee.getTranslation()) << endl;
 	
 	// Setup the 2D bounds
 	bounds.setHeight(-1 * h);
@@ -32,19 +49,14 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	bounds.setPosition(pos);
 
 	// update the gui
+	cout << "ee position b4 move_to: " << ofToString(ee->getGlobalPosition()) << endl;
 	move_to.setMax(glm::vec2(bounds.getWidth(), -1 * bounds.getHeight()));
+	cout << "ee position AFTER move_to: " << ofToString(ee->getGlobalPosition()) << endl;
 	move_to.set(glm::vec2(bounds.getWidth()/2, -1 * bounds.getHeight()/2));
 	zone.set(20);
 	ee_offset.set(40);
 	vel_limit.set(30);
 	bounds_max.set(3000);
-
-	// setup the end effector control gizmo
-	gizmo_ee.setNode(*ee);
-	gizmo_ee.setDisplayScale(.5);
-
-	gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
-	gizmo_ee.setScaleAxisMask(IGizmo::AXIS_X);
 
 	get_status();
 }
@@ -58,24 +70,24 @@ void CableRobot2D::update()
 	for (int i = 0; i < robots.size(); i++) {
 		// monitor the torque and stop all motors if unexpected value
 		if (robots[i]->is_torque_in_limits()) {
-			// compensate for lateral direction
-			float x = ee->getPosition().x;		// get local x value
-			float x_offset = 0;
-			if (i == 0) {					// shorten motor 0 when we're on the right side
-				if (x >= bounds.getWidth() / 2)
-					x_offset = ofMap(x, bounds.getWidth()/2, bounds.getWidth(), 0, -x_offset_max.get(), true);
-				else
-					x_offset = 0;
-			}
-			else if (i == 1) {				// shorten motor 1 when we're on the left side
-				if (x < bounds.getWidth() / 2)
-					x_offset = ofMap(x, 0, bounds.getWidth()/2, -x_offset_max.get(), 0, true);
-				else
-					x_offset = 0;
-			}
-			//cout << i << ": x_offset: " << x_offset << endl;
-			robots[i]->prev_planar_compensation_x = robots[i]->planar_compensation_x.get();
-			robots[i]->planar_compensation_x.set(x_offset);
+			//// compensate for lateral direction
+			//float x = ee->getPosition().x;		// get local x value
+			//float x_offset = 0;
+			//if (i == 0) {					// shorten motor 0 when we're on the right side
+			//	if (x >= bounds.getWidth() / 2)
+			//		x_offset = ofMap(x, bounds.getWidth()/2, bounds.getWidth(), 0, -x_offset_max.get(), true);
+			//	else
+			//		x_offset = 0;
+			//}
+			//else if (i == 1) {				// shorten motor 1 when we're on the left side
+			//	if (x < bounds.getWidth() / 2)
+			//		x_offset = ofMap(x, 0, bounds.getWidth()/2, -x_offset_max.get(), 0, true);
+			//	else
+			//		x_offset = 0;
+			//}
+			////cout << i << ": x_offset: " << x_offset << endl;
+			//robots[i]->prev_planar_compensation_x = robots[i]->planar_compensation_x.get();
+			//robots[i]->planar_compensation_x.set(x_offset);
 
 			robots[i]->update();
 		}
@@ -102,7 +114,10 @@ void CableRobot2D::draw()
 	else
 		color = ofColor::red;
 	ofSetColor(color, 10);
+	ofPushMatrix();
+	ofTranslate(0, 0, robots[0]->get_base().getGlobalPosition().z);
 	ofDrawRectangle(bounds.getPosition(), bounds.width, bounds.height);
+	ofPopMatrix();
 	ofPopStyle();
 
 	for (int i = 0; i < robots.size(); i++) {
@@ -471,7 +486,7 @@ void CableRobot2D::on_torque_limits_changed(float& val)
 
 void CableRobot2D::on_move_to_changed(glm::vec2& val)
 {
-	ee->setPosition(glm::vec3(val.x, -1 * val.y, 0));
+	ee->setPosition(glm::vec3(val.x, -1 * val.y, base_top_left.z));
 	gizmo_ee.setNode(*ee);
 }
 

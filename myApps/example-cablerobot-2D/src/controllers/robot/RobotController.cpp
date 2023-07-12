@@ -490,12 +490,12 @@ void RobotController::set_origin(glm::vec3 pos, glm::quat orient)
 	origin->setGlobalOrientation(orient);
 }
 
-void RobotController::set_targets(glm::vec3 target)
+void RobotController::set_targets(vector<glm::vec3*> targets)
 {
 	if (system_config == Configuration::TWO_D) {
 		for (int i = 0; i < robots_2D.size(); i++) {
 			ofNode node;
-			node.setPosition(target);
+			node.setPosition(*targets[i]);
 			robots_2D[i]->get_gizmo()->setNode(node);
 		}
 	}
