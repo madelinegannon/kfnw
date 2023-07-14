@@ -11,6 +11,10 @@
 #### The Shapes of Things to Come (2008)
 [Project Page](https://artcom.de/en/?project=kinetic-sculpture)
 
+<img width="1920" alt="artcom_cable_drums_2" src="https://github.com/madelinegannon/kfnw/assets/3160264/fa121989-5bec-490c-ac69-fb27873414bb">
+<img width="1920" alt="artcom_cable_drums_1" src="https://github.com/madelinegannon/kfnw/assets/3160264/d5c68975-829f-4ab7-92c1-9ed993d3f6fb">
+<img width="1920" alt="artcom_cable_drums_0" src="https://github.com/madelinegannon/kfnw/assets/3160264/c15610f4-12ea-4bf8-914a-897d33c17533">
+
 #### RGB|CMY(K) (2015)
 [Project Page](https://artcom.de/en/?project=rgbcmy-kinetic)
 
@@ -18,6 +22,8 @@
 
 #### Pendulum Casa V (2015)
 [Project Page](https://artcom.de/en/?project=pendulum-casa-v)
+
+
 
 #### Raphael's Pendulum (2018)
 [Project Page](https://artcom.de/en/?project=raphaels-pendulum)
@@ -30,6 +36,7 @@
 #### 20 Steps
 
 
+![DRIFT_inst_20200303_v02 (1)](https://github.com/madelinegannon/kfnw/assets/3160264/845d10d6-b203-4793-875c-352254dbd43d)
 
 ### Random International
 
@@ -42,6 +49,11 @@
 
 #### Otto
 [Project Page](https://juerglehni.com/works/otto)
+
+![defekt_ch_hektor_dose](https://github.com/madelinegannon/kfnw/assets/3160264/6cac6c36-7fa9-49e5-9296-9e9d1e907d08)
+![defekt_ch_hektor_antrieb](https://github.com/madelinegannon/kfnw/assets/3160264/5984d41f-5c53-40c7-908d-d70b9df63f03)
+![defekt_ch_hektor_4pole](https://github.com/madelinegannon/kfnw/assets/3160264/eb886183-b0d6-44c2-8607-8e07cb029121)
+
 
 ## Construction
 
