@@ -70,6 +70,8 @@ Case Study: [Reflections](https://wahlberg.dk/cases/remarkable-and-reflective-ki
 ## Research
 [A Review of Cable-Driven Parallel Robots](https://ieeexplore.ieee.org/abstract/document/9745192) | [PDF](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9745192&tag=1)
 
+[International Conference on Cable-Driven Parallel Robots (CableCon)](https://link.springer.com/conference/cablecon)
+
 ### Design Papers & References
 
 - [Design of a Planar Cable-Driven Parallel Robot for Non-Contact Tasks](https://doi.org/10.3390/app11209491) | MDPI
