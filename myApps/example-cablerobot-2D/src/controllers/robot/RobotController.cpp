@@ -282,7 +282,7 @@ void RobotController::threadedFunction()
 		}
 
 		//if (state == ControllerState::PLAY)
-			update();
+		update();
 	}
 }
 /**

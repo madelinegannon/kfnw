@@ -136,10 +136,6 @@ void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
 		gizmo_ee.setNode(*ee);
 		gizmo_ee.setDisplayScale(.5);
 		gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
-
-		ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " target global position: " << ofToString(target.getGlobalPosition());
-		ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " ee global position: " << ofToString(ee->getGlobalPosition());
-		ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " gizmo_ee global position: " << ofToString(gizmo_ee.getTranslation()) << endl;
 	}
 	//trajectory.reset();
 	trajectory.curr_pos.set(target.getGlobalPosition());
@@ -450,7 +446,7 @@ void CableRobot::update()
 		
 		if (state != RobotState::E_STOP) {
 			if (is_in_bounds(abs(actual.getPosition().y), true)){	
-				move_velocity_rpm(trajectory.get_rpm());				
+				//move_velocity_rpm(trajectory.get_rpm());		// MAD EDIT 8/14/2023		
 			}
 			else {
 				stop();
@@ -541,7 +537,8 @@ void CableRobot::draw()
 
 		float dist = actual.getPosition().y;
 		glm::vec3 heading = glm::normalize(tangent.getGlobalPosition() - trajectory_world_coords.getVertices()[0]) * dist ;
-		draw_cable(tangent.getGlobalPosition(), tangent.getGlobalPosition() + heading);
+		actual_world_pos = tangent.getGlobalPosition() + heading;
+		draw_cable(tangent.getGlobalPosition(), actual_world_pos);
 	}
 
 	//// draw distance to actual in (simulated) world coordinates
@@ -717,7 +714,7 @@ bool CableRobot::is_in_bounds(float target_pos, bool is_absolute)
 
 /**
  * @brief Returns the sign for moving the motor based on the cable drum's groove direction. LEFT_HANDED = -1, RIGHT_HANDED = 1.
- *  
+ *
  * A homed, left-handed drum operates in negative rotation space.
  * @return (int)  -/+ 1 depending on configuration
  */
@@ -728,7 +725,7 @@ int CableRobot::get_rotation_direction()
 
 /**
  * @brief Checks if the robot is homed, updates the state,
- * and updates the GUI. 
+ * and updates the GUI.
  */
 void CableRobot::check_for_system_ready()
 {
@@ -746,12 +743,12 @@ void CableRobot::check_for_system_ready()
 
 		_state = RobotState::NOT_HOMED;
 		color = mode_color_not_homed;
-	}	
+	}
 	else {
 		bool _is_enabled = is_enabled();
 		_state = _is_enabled ? RobotState::ENABLED : RobotState::DISABLED;
 		color = _is_enabled ? mode_color_enabled : mode_color_disabled;
-		
+
 		// check that the gui matched the current state
 		if (enable.get() != _is_enabled)
 			enable.set(_is_enabled);
@@ -764,8 +761,8 @@ void CableRobot::check_for_system_ready()
 /**
  * @brief Returns whether the motor is ready for a movement command.
  * Motor is ready when there's no E-Stop, it's Homed, and it's Enabled.
- * 
- * @return (bool)  
+ *
+ * @return (bool)
  */
 bool CableRobot::is_ready()
 {
@@ -774,6 +771,20 @@ bool CableRobot::is_ready()
 
 void CableRobot::update_trajectory()
 {
+	////////////////////////////
+	// MAD EDIT 08/10/2023 
+	bool remove_target = false;
+	if (trajectory.get_num_targets() == 0){
+		remove_target = false;
+	}
+	else {
+		float dist_sq = trajectory.curr_pos.distanceSquared(trajectory.path.getVertices()[0]);
+		if (dist_sq <= trajectory.look_ahead_radius.get() * trajectory.look_ahead_radius.get() && trajectory.get_num_targets() >= 2) {
+			move_done = true;
+		}
+	}
+	////////////////////////////
+
 	// check if we need to remove a target from the world trajectory
 	if (trajectory.get_num_targets() < trajectory_world_coords.getVertices().size() &&
 		trajectory_world_coords.getVertices().size() > 0) {
@@ -794,10 +805,12 @@ void CableRobot::update_trajectory()
 		add_target = true;
 	else {
 		// add the target to the trajectory path, but don't add small moves
-		float dist_to_last_target = glm::distance(tangent.getGlobalPosition(), trajectory.get_last_target());
-		float dist_diff = abs(dist - dist_to_last_target);
-		if (abs(dist - dist_to_last_target) > 1)
-			add_target = true;
+		float dist_sq_to_last_target = glm::distance2(tangent.getGlobalPosition(), trajectory.get_last_target());
+		float dist_diff_sq = abs(dist*dist - dist_sq_to_last_target);
+		float threshold = 10;
+		if (dist_diff_sq > threshold * threshold) {
+			//	add_target = true;
+		}
 	}
 
 	if (add_target){
@@ -1045,17 +1058,18 @@ void CableRobot::draw_cable(glm::vec3 start, glm::vec3 end)
 	ofPopStyle();
 }
 
-
 void CableRobot::move_velocity_rpm(float rpm)
 {
 	if (!is_estopped() && is_enabled() && is_homed()) {
 		//cout << "RPM from Trajectory: " << rpm << endl;
 
 		// get whether we're moving up (1) or down (-1)
-		rpm *= trajectory.get_heading().y * -1;
+		if (trajectory.get_heading().y != 0)
+			rpm *= trajectory.get_heading().y * -1;
 		// convert for cable drum direction 
 		rpm *= get_rotation_direction();
 		// clamp to velocity limit
+		//cout << "MOTOR " << get_id() << ", incoming RPM: " << rpm << endl;
 		rpm = ofClamp(rpm, -vel_limit.get(), vel_limit.get());
 		//cout << "\tfinal RPM: " << rpm << endl;
 		
@@ -1077,10 +1091,17 @@ void CableRobot::move_velocity_rpm(float rpm)
 	}
 }
 
+void CableRobot::remove_target(int index)
+{
+	trajectory.remove_target(index);
+	move_done = false;
+}
+
 void CableRobot::stop()
 {
 	move_type = MoveType::POS;
 	motor_controller->get_motor()->stop();
+	move_done = true;
 
 	// upadate the gui
 	info_velocity_target.set("0");

@@ -44,12 +44,12 @@ public:
 	void on_set_camera_view(glm::vec3 position, glm::vec3 target, float distance=2250);
 	void on_print_camera_view();
 
-	glm::vec3 camera_top = glm::vec3(800, -1000, 2400);
-	glm::vec3 camera_side = glm::vec3(0, 0, -10000);
-	glm::vec3 camera_front = glm::vec3(4000, 2000, -2000);
-	glm::vec3 camera_perspective = glm::vec3(5000, -3000, -5000);
+	glm::vec3 camera_top = glm::vec3(0, 0, 0);
+	glm::vec3 camera_side = glm::vec3(1000, -1000, 0);
+	glm::vec3 camera_front = glm::vec3(0, -1000, 2000);
+	glm::vec3 camera_perspective = glm::vec3(5000, -3000, 5000);
 
-	glm::vec3 camera_target = glm::vec3(800, -1000, 0);
+	glm::vec3 camera_target = glm::vec3(0, -1000, 0);
 
 	ofColor background_inner = ofColor(238);
 	ofColor background_outer = ofColor(118);

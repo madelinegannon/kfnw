@@ -12,7 +12,6 @@ private:
     float rpm = 0.0;
 
     ofVec3f accel;
-    ofVec3f heading;
     ofVec3f vel_projected; // curr_vel projected onto the heading vector
 
     void update_desired_vel();
@@ -22,11 +21,14 @@ private:
 
     void setup_gui();
     float get_max_dist_from_vel(float max_vel);
+
+    bool debugging = false;
 public:
     
     Trajectory();
 
     ofVec3f desired_pos, desired_vel, curr_pos, curr_vel;
+    ofVec3f heading;
     ofPolyline path;
     
     void update();
@@ -34,9 +36,11 @@ public:
     void draw(bool show_debug = true);
     void reset(glm::vec3 start=glm::vec3());
     void add_target(glm::vec3 target);
+    void remove_target(int index = 0);
     
     glm::vec3 get_curr_pos() { return glm::vec3(curr_pos); }
     glm::vec3 get_heading() { return glm::vec3(heading.getNormalized()); }
+
     glm::vec3 get_last_target();
     int get_num_targets() { return path.getVertices().size(); }
     float get_rpm() { return rpm; }
@@ -56,5 +60,7 @@ public:
 
     void on_wheel_diameter_changed(float& val);
     void on_max_vel_changed(float& val);
-    
+
+    void set_debugging(bool val) { debugging = val; }
+    bool get_debugging() { return debugging;  }
 };

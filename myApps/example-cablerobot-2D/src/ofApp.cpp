@@ -20,12 +20,13 @@ void ofApp::setup() {
 
 	// set the world coordinate system of the robots (flip to match screen coord axes)
 	origin.rotateAroundDeg(180, glm::vec3(1, 0, 0), glm::vec3(0, 0, 0));
-	origin.setGlobalPosition(500, 0, 0);
+	origin.setGlobalPosition( -1 * (positions[0].x + positions[1].x) / 2.0, 0, 0);
 	robots = new RobotController(positions, &origin);
-	motion = new MotionController();
+	motion = new MotionController(positions, &origin);
 
 
 	on_set_camera_view(camera_top, camera_target, 2250);
+	ofSetFrameRate(60);
 }
 
 //--------------------------------------------------------------
@@ -77,7 +78,9 @@ void ofApp::draw()
 
 	// draw 2D
 	robots->draw_gui();
-	motion->panel.draw();
+	motion->draw_gui();
+
+	ofDrawBitmapStringHighlight(ofToString(ofGetFrameRate()), ofGetWidth() - 100, 20);
 }
 
 //--------------------------------------------------------------
@@ -85,7 +88,8 @@ void ofApp::keyPressed(int key) {
 
 	key_pressed_camera(key);
 
-	// pass the key pressed to the robot controller
+	// pass the key pressed to the motion & robot controller
+	motion->keyPressed(key);
 	robots->key_pressed(key);
 
 

@@ -38,7 +38,6 @@ private:
     ofNode target = ofNode();      // desired ee position
     ofNode actual = ofNode();      // actual ee position
 
-    Trajectory trajectory;
     void update_trajectory();
    
 
@@ -94,6 +93,8 @@ public:
     void key_pressed(int key);
     int get_id();
 
+    Trajectory trajectory;
+
     void configure(ofNode* _origin,
         ofNode* _ee,
         glm::vec3 base,
@@ -124,6 +125,9 @@ public:
     ofNode* get_target() { return &target; }
     void set_ee(ofNode* _ee) { this->ee = _ee; }
     ofPolyline trajectory_world_coords;
+    glm::vec3 actual_world_pos;
+
+    MotorController* get_motor_controller() { return motor_controller; }
 
     ofNode get_base() { return base; }
     void set_base_position(glm::vec3 pos) { base.setPosition(pos); }
@@ -138,6 +142,8 @@ public:
     void move_position(float target_pos, bool absolute = true);
     void move_velocity(float target_pos);
     void move_velocity_rpm(float rpm);
+    bool move_done = false;
+    void remove_target(int index = 0);
 
 
     void stop();

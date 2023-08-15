@@ -10,11 +10,12 @@ void Trajectory::update()
     // move towards the oldest point in the trajectory
     if (path.getVertices().size() > 0) {
 
-        // remove oldest target from the path if we're close
-        float dist_sq = curr_pos.distanceSquared(path.getVertices()[0]);
-        if (dist_sq <= look_ahead_radius.get() * look_ahead_radius.get() && get_num_targets() >= 2) {
-            path.removeVertex(0);
-        }
+        // MAD EDIT 08/10/2023 <-- REMOVE EXTERNALLY
+        //// remove oldest target from the path if we're close
+        //float dist_sq = curr_pos.distanceSquared(path.getVertices()[0]);
+        //if (dist_sq <= look_ahead_radius.get() * look_ahead_radius.get() && get_num_targets() >= 2) {
+        //    remove_target(0);
+        //}
         
         // update the desired pos
         if (path.getVertices().size() > 0)
@@ -105,6 +106,15 @@ void Trajectory::reset(glm::vec3 start)
     rpm = 0;
 }
 
+void Trajectory::remove_target(int index)
+{
+    if (index < path.getVertices().size())
+        path.removeVertex(index);
+    else {
+        ofLogWarning(__FUNCTION__) << "Index out of range for path vertices.";
+    }
+}
+
 /**
  * @brief Returns the last target to be added to the path. Returns (0, 0, 0) if path is empty.
  * 
@@ -145,7 +155,7 @@ void Trajectory::update_desired_vel() {
     vel_projected = curr_pos + b;
 
     // if we are heading towards the target
-    if (curr_pos.distance(desired_pos) > vel_projected.distance(desired_pos)) {
+    if (curr_pos.distanceSquared(desired_pos) > vel_projected.distanceSquared(desired_pos)) {
         // weight the desired velocity
         desired_vel = vel_projected - curr_pos;
     }
@@ -162,7 +172,7 @@ void Trajectory::update_current_vel() {
     accel = kp * (desired_pos - curr_pos) + kd * (desired_vel - curr_vel);
 
     // update the current velocity (convert accel from m/s/s to m/s)
-    time_diff = 1 / 60.0;// ofGetElapsedTimef() - time_last; // <-- dynamic time_diff causing instability with multiple robots
+    //time_diff = 1 / 60.0;// ofGetElapsedTimef() - time_last; // <-- dynamic time_diff causing instability with multiple robots
     get_max_dist_from_vel(max_vel.get());
     curr_vel = curr_vel + accel * time_diff;
     time_last = ofGetElapsedTimef();
@@ -177,16 +187,15 @@ void Trajectory::compute_rpm(ofVec3f prev_pos, ofVec3f curr_pos)
     // float rpm = mm_per_minute / circumference;   // convert from linear distance to revolutions
     float dist = prev_pos.distance(curr_pos);
     rpm = dist / time_diff * 60.0 / circumference;
-    info_rpm.set(ofToString(rpm));
+    if (debugging)
+        info_rpm.set(ofToString(rpm));
 }
 
 void Trajectory::update_position() {
     // update the vehicle position (convert vel from m/s to m)
     ofVec3f pos = curr_pos + curr_vel * time_diff * steering_scalar;
     // cap to a max RPM
-    float dist = pos.distance(curr_pos);
-
-    if (dist > max_vel_dist) {
+    if (pos.distanceSquared(curr_pos) > max_vel_dist * max_vel_dist) {
         auto scaled = curr_vel * time_diff * steering_scalar;
         scaled.normalize();
         scaled.scale(max_vel_dist);
@@ -208,7 +217,8 @@ void Trajectory::on_max_vel_changed(float& val)
 {
     max_vel_dist = get_max_dist_from_vel(val);
     look_ahead_radius.set(max_vel * 0.75);
-    info_max_vel_dist.set(ofToString(max_vel_dist));
+    if (debugging)
+        info_max_vel_dist.set(ofToString(max_vel_dist));
 }
 
 /**

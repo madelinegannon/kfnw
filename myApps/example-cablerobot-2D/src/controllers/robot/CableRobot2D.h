@@ -14,10 +14,16 @@ private:
 
 	int id;
 	vector<CableRobot*> robots;
-
+	Trajectory trajectory;
 	vector<Trajectory*> trajectories_2D;
 	void update_trajectories_2D();
 	void draw_trajectories_2D();
+
+	void draw_cables_actual(glm::vec3 start_0, glm::vec3 end_0, float dist_0, glm::vec3 start_1, glm::vec3 end_1, float dist_1);
+	void draw_cables_2D();
+
+	vector<vector<glm::vec3>> ee_path;
+	void draw_ee_path();
 
 	ofNode* origin;     // World reference frame 
 	ofNode* ee;			// World reference 
