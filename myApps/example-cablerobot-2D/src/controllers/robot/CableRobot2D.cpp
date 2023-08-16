@@ -7,6 +7,7 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	//trajectories_2D.push_back(new Trajectory());
 	//trajectories_2D.push_back(new Trajectory());
 
+
 	this->base_top_left = base_top_left;
 	this->base_top_right = base_top_right;
 
@@ -47,10 +48,10 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	// update the gui
 	move_to.setMax(glm::vec2(bounds.getWidth(), -1 * bounds.getHeight()));
 	move_to.set(glm::vec2(bounds.getWidth()/2, -1 * bounds.getHeight()/2));
-	zone.set(20);
+	//zone.set(20);
 	ee_offset.set(40);
-	vel_limit.set(15);
-	accel_limit.set(100);
+	vel_limit.set(35);
+	accel_limit.set(120);
 	bounds_max.set(3000);
 
 	this->ee->setGlobalPosition(bounds.getCenter().x, bounds.getCenter().y, top_left->get_base().getGlobalPosition().z);
@@ -59,6 +60,20 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	get_status();
 
 	trajectory.max_vel.set(vel_limit.get() / .50);
+
+	TimeSeriesPlot tsp;
+	tsp.name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
+	tsp.min = vel_limit.get() * -1;
+	tsp.max = vel_limit.get() * 1;
+	plots_rpm.push_back(tsp);
+
+	frequency = 30; // Hz
+	mincutoff = 0.00001; // FIXME
+	beta = 0.005;// 0.5;      // FIXME
+	dcutoff = 0.5;   // this one should be ok
+
+	filter_0.setup(frequency, mincutoff, beta, dcutoff);
+	filter_1.setup(frequency, mincutoff, beta, dcutoff);
 }
 
 void CableRobot2D::update()
@@ -116,62 +131,62 @@ void CableRobot2D::update()
 		glm::vec3 offset_0 = glm::vec3(-1 * ee_offset.get(), 0, 0);
 		glm::vec3 offset_1 = glm::vec3(ee_offset.get(), 0, 0);
 		float dist_thresh = 100;
-		bool add_target = false;
-		//if (ee_path.size() == 0) {
-		if(trajectory.get_num_targets() == 0){
-			add_target = true;
-			// set the trajectory starting point
-			//trajectories_2D[0]->reset(ee->getGlobalPosition() + offset_0);
-			//trajectories_2D[0]->desired_pos.set(ee->getGlobalPosition() + offset_0);
-			//trajectories_2D[1]->reset(ee->getGlobalPosition() + offset_1);
-			//trajectories_2D[1]->desired_pos.set(ee->getGlobalPosition() + offset_1);
+		//bool add_target = false;
+		////if (ee_path.size() == 0) {
+		//if(trajectory.get_num_targets() == 0){
+		//	add_target = true;
+		//	// set the trajectory starting point
+		//	//trajectories_2D[0]->reset(ee->getGlobalPosition() + offset_0);
+		//	//trajectories_2D[0]->desired_pos.set(ee->getGlobalPosition() + offset_0);
+		//	//trajectories_2D[1]->reset(ee->getGlobalPosition() + offset_1);
+		//	//trajectories_2D[1]->desired_pos.set(ee->getGlobalPosition() + offset_1);
 
-			trajectory.reset(ee->getGlobalPosition() + offset_0);
-			trajectory.desired_pos.set(ee->getGlobalPosition());
-		}
-		else {
-			//auto last_target = ee_path[ee_path.size() - 1][1];
-			auto last_target = trajectory.get_last_target();
-			float dist_sq = glm::distance2(last_target, ee->getGlobalPosition());
-			if (dist_sq > dist_thresh * dist_thresh) {
-				add_target = true;				
-			}
-		}
+		//	trajectory.reset(ee->getGlobalPosition());
+		//	trajectory.desired_pos.set(ee->getGlobalPosition());
+		//}
+		//else {
+		//	//auto last_target = ee_path[ee_path.size() - 1][1];
+		//	auto last_target = trajectory.get_last_target();
+		//	float dist_sq = glm::distance2(last_target, ee->getGlobalPosition());
+		//	if (dist_sq > dist_thresh * dist_thresh) {
+		//		add_target = true;				
+		//	}
+		//}
 
-		if (add_target) {
-			//vector<glm::vec3> ee_pair;
-			//ee_pair.push_back(ee->getGlobalPosition() + offset_0);
-			//ee_pair.push_back(ee->getGlobalPosition());
-			//ee_pair.push_back(ee->getGlobalPosition() + offset_1);
-			//ee_path.push_back(ee_pair);
-			//trajectories_2D[0]->add_target(ee_pair[0]);
-			//trajectories_2D[1]->add_target(ee_pair[2]);
+		//if (add_target) {
+		//	//vector<glm::vec3> ee_pair;
+		//	//ee_pair.push_back(ee->getGlobalPosition() + offset_0);
+		//	//ee_pair.push_back(ee->getGlobalPosition());
+		//	//ee_pair.push_back(ee->getGlobalPosition() + offset_1);
+		//	//ee_path.push_back(ee_pair);
+		//	//trajectories_2D[0]->add_target(ee_pair[0]);
+		//	//trajectories_2D[1]->add_target(ee_pair[2]);
 
-			trajectory.add_target(ee->getGlobalPosition());
-		}
+		//	trajectory.add_target(ee->getGlobalPosition());
+		//}
 
-		bool remove_target = false;
-		if (trajectory.get_num_targets() < 2){
-		//if (ee_path.size() < 2) {
-		}
-		else {
-			//auto first_target = ee_path[0][1];
-			auto first_target = trajectory.path.getVertices()[0];
-			//auto curr_pos = trajectories_2D[0]->get_curr_pos() + offset_1;
-			auto curr_pos = trajectory.get_curr_pos();
-			dist_thresh *= .40;
-			float dist_sq = glm::distance2(first_target, curr_pos);
-			if (dist_sq < dist_thresh * dist_thresh) {
-				remove_target = true;
-			}
-		}
-		if (remove_target) {
-			//ee_path.erase(ee_path.begin());
-			//trajectories_2D[0]->remove_target(0);
-			//trajectories_2D[1]->remove_target(0);
+		//bool remove_target = false;
+		//if (trajectory.get_num_targets() < 2){
+		////if (ee_path.size() < 2) {
+		//}
+		//else {
+		//	//auto first_target = ee_path[0][1];
+		//	auto first_target = trajectory.path.getVertices()[0];
+		//	//auto curr_pos = trajectories_2D[0]->get_curr_pos() + offset_1;
+		//	auto curr_pos = trajectory.get_curr_pos();
+		//	dist_thresh *= .40;
+		//	float dist_sq = glm::distance2(first_target, curr_pos);
+		//	if (dist_sq < dist_thresh * dist_thresh) {
+		//		remove_target = true;
+		//	}
+		//}
+		//if (remove_target) {
+		//	//ee_path.erase(ee_path.begin());
+		//	//trajectories_2D[0]->remove_target(0);
+		//	//trajectories_2D[1]->remove_target(0);
 
-			trajectory.remove_target(0);
-		}
+		//	trajectory.remove_target(0);
+		//}
 
 		update_trajectories_2D();
 	}
@@ -236,6 +251,16 @@ void CableRobot2D::draw()
 
 void CableRobot2D::draw_gui() {
 	panel.draw();
+
+	// draw the RPM Plot for just the first cablebot
+	//if (robots[0]->get_id() == 0) {
+	//	ofPushMatrix();
+	//	for (auto& plot : plots_rpm) {
+	//		ofTranslate(ofGetWidth() - 600, ofGetHeight() / 2);
+	//		plot.draw();
+	//	}
+	//	ofPopMatrix();
+	//}
 	
 	if (debugging) {
 		int y = panel.getPosition().y + panel.getHeight();
@@ -333,50 +358,52 @@ void CableRobot2D::key_pressed(int key)
 
 void CableRobot2D::update_trajectories_2D()
 {
-	//for (int i = 0; i < trajectories_2D.size(); i++) {
+	////for (int i = 0; i < trajectories_2D.size(); i++) {
 
-	//	// get the distance to the target and the distance to the trajectory's last target
-	//	//float dist_sq = glm::distance2(robots[i]->get_tangent().getGlobalPosition(), robots[i]->get_target()->getGlobalPosition());
+	////	// get the distance to the target and the distance to the trajectory's last target
+	////	//float dist_sq = glm::distance2(robots[i]->get_tangent().getGlobalPosition(), robots[i]->get_target()->getGlobalPosition());
 
-	//	//// check if we need to add a target to the trajectory
-	//	//bool add_target = false;
-	//	//if (trajectories_2D[i]->get_num_targets() == 0)
-	//	//	add_target = true;
-	//	//else {
-	//	//	// add the target to the trajectory path, but don't add small moves
-	//	//	float dist_sq_to_last_target = glm::distance(robots[i]->get_tangent().getGlobalPosition(), trajectories_2D[i]->get_last_target());
-	//	//	float dist_sq_diff = abs(dist_sq - dist_sq_to_last_target);
-	//	//	float threshold = 2;
-	//	//	if (dist_sq_diff > threshold * threshold)
-	//	//		add_target = true;
-	//	//}
+	////	//// check if we need to add a target to the trajectory
+	////	//bool add_target = false;
+	////	//if (trajectories_2D[i]->get_num_targets() == 0)
+	////	//	add_target = true;
+	////	//else {
+	////	//	// add the target to the trajectory path, but don't add small moves
+	////	//	float dist_sq_to_last_target = glm::distance(robots[i]->get_tangent().getGlobalPosition(), trajectories_2D[i]->get_last_target());
+	////	//	float dist_sq_diff = abs(dist_sq - dist_sq_to_last_target);
+	////	//	float threshold = 2;
+	////	//	if (dist_sq_diff > threshold * threshold)
+	////	//		add_target = true;
+	////	//}
 
-	//	//if (add_target) {
-	//	//	trajectories_2D[i]->add_target(robots[i]->get_target()->getGlobalPosition());
-	//	//}
+	////	//if (add_target) {
+	////	//	trajectories_2D[i]->add_target(robots[i]->get_target()->getGlobalPosition());
+	////	//}
 
-	//	float dist = robots[i]->get_position_actual();
-	//	glm::vec3 heading = glm::normalize(robots[i]->get_tangent().getGlobalPosition() - trajectories_2D[i]->get_curr_pos()) * dist;
-	//	glm::vec3 curr_pos = (robots[i]->get_tangent().getGlobalPosition() + heading);
+	////	float dist = robots[i]->get_position_actual();
+	////	glm::vec3 heading = glm::normalize(robots[i]->get_tangent().getGlobalPosition() - trajectories_2D[i]->get_curr_pos()) * dist;
+	////	glm::vec3 curr_pos = (robots[i]->get_tangent().getGlobalPosition() + heading);
 
-	//	ofDrawEllipse(curr_pos, 30, 30);
+	////	ofDrawEllipse(curr_pos, 30, 30);
 
-	//	trajectories_2D[i]->update();
-	//	robots[i]->trajectory.heading.set(trajectories_2D[i]->heading);
-	//	//robots[i]->move_velocity_rpm(trajectories_2D[i]->get_rpm());
+	////	trajectories_2D[i]->update();
+	////	robots[i]->trajectory.heading.set(trajectories_2D[i]->heading);
+	////	//robots[i]->move_velocity_rpm(trajectories_2D[i]->get_rpm());
 
-	//	// update the 2D cable visualization
-	//	if (robots[i]->trajectory_world_coords.getVertices().size() > 0)
-	//		robots[i]->trajectory_world_coords.getVertices()[0] = trajectories_2D[i]->get_curr_pos();
-	//	
-	//}
+	////	// update the 2D cable visualization
+	////	if (robots[i]->trajectory_world_coords.getVertices().size() > 0)
+	////		robots[i]->trajectory_world_coords.getVertices()[0] = trajectories_2D[i]->get_curr_pos();
+	////	
+	////}
 
-	trajectory.update();
+	//trajectory.update();
 
 	glm::vec3 offset_0 = glm::vec3(-1 * ee_offset.get(), 0, 0);
 	glm::vec3 offset_1 = glm::vec3(ee_offset.get(), 0, 0);
-	glm::vec3 desired_left = trajectory.get_curr_pos() + offset_0;
-	glm::vec3 desired_right = trajectory.get_curr_pos() + offset_1;
+	//glm::vec3 desired_left = trajectory.get_curr_pos() + offset_0;
+	//glm::vec3 desired_right = trajectory.get_curr_pos() + offset_1;
+	glm::vec3 desired_left = ee->getGlobalPosition() + offset_0;
+	glm::vec3 desired_right = ee->getGlobalPosition() + offset_1;
 
 	if (robots[0]->trajectory_world_coords.getVertices().size() > 0)
 		robots[0]->trajectory_world_coords.getVertices()[0] = desired_left;
@@ -387,30 +414,33 @@ void CableRobot2D::update_trajectories_2D()
 	float actual_1D = robots[0]->get_position_actual();
 	//float desired_1D = glm::distance(robots[0]->get_tangent().getGlobalPosition(), trajectories_2D[0]->get_curr_pos());
 	float desired_1D = glm::distance(robots[0]->get_tangent().getGlobalPosition(), desired_left);
-	float dist = abs(desired_1D - actual_1D);
+	float dist_0 = abs(desired_1D - actual_1D);
 	float heading_0 = (desired_1D > actual_1D) ? -1 : 1;
 	//cout << "DIST 0: " << dist << endl;
 	// compute rpm to move from desired to actual
-	float time_diff = 1 / 30.0;
+	float time_diff = 1 / 60.0;
 	float circumference = 314.0;
-	float rpm_0 = dist / time_diff * 60.0 / circumference;
+	float rpm_0 = dist_0 / time_diff * 60.0 / circumference;
 
-	float dist_threshold = 5;
-	if (dist < dist_threshold) {
-		rpm_0 = ofMap(dist, dist_threshold, vel_limit.get(), 0, true);
-	}
+	//float dist_threshold = 5;
+	//if (dist < dist_threshold) {
+	//	rpm_0 = ofMap(dist, dist_threshold, vel_limit.get(), 0, true);
+	//}
 
 	actual_1D = robots[1]->get_position_actual();
 	//desired_1D = glm::distance(robots[1]->get_tangent().getGlobalPosition(), trajectories_2D[1]->get_curr_pos());
 	desired_1D = glm::distance(robots[1]->get_tangent().getGlobalPosition(), desired_right);
-	dist = abs(desired_1D - actual_1D);
+	float dist_1 = abs(desired_1D - actual_1D);
 	float heading_1 = (desired_1D > actual_1D) ? -1 : 1;
 	//cout << "DIST 1: " << dist << endl;
-	float rpm_1 = dist / time_diff * 60.0 / circumference;
+	float rpm_1 = dist_1 / time_diff * 60.0 / circumference;
 
-	if (dist < dist_threshold) {
-		rpm_1 = ofMap(dist, dist_threshold, vel_limit.get(), 0, true);
-	}
+	float raw_rpm_0 = rpm_0;
+	float raw_rpm_1 = rpm_1;
+
+	//if (dist < dist_threshold) {
+	//	rpm_1 = ofMap(dist, dist_threshold, vel_limit.get(), 0, true);
+	//}
 
 	// check if we need to scale the velocities
 	//float rpm_0 = trajectories_2D[0]->get_rpm();
@@ -427,13 +457,62 @@ void CableRobot2D::update_trajectories_2D()
 		rpm_0 *= scale_factor;
 		rpm_1 *= scale_factor;
 	}
+
+	// arrive at target
+	float dist_threshold = 50;// vel_limit.get() * 1.75;
+	if (dist_0 < dist_threshold) {
+		rpm_0 = ofMap(dist_0, dist_threshold, 0, rpm_0, 0);
+	}
+	if (dist_1 < dist_threshold) {
+		rpm_1 = ofMap(dist_1, dist_threshold, 0, rpm_1, 0);
+	}
+
 	rpm_0 *= heading_0;
 	rpm_1 *= heading_1;
 	//cout << "SCALED RPM 0: " << rpm_0 << endl;
 	//cout << "SCALED RPM 1: " << rpm_1 << endl << endl;
 
-	robots[0]->get_motor_controller()->get_motor()->move_velocity(rpm_0);
-	robots[1]->get_motor_controller()->get_motor()->move_velocity(rpm_1);
+	raw_rpm_0 *= heading_0;
+	raw_rpm_1 *= heading_1;
+
+	// PID Experiment
+	float filtered_rpm_0 = 0;
+	float filtered_rpm_1 = 0;
+	//if (plots_rpm[0].data.size() > 0){
+	//	// Get error between setpoint RPM and real value
+	//	float prev_rpm = plots_rpm[0].data[plots_rpm[0].data.size() - 1][0];
+	//	PID_error = rpm_0 - prev_rpm;
+	//	//Calculate the P value
+	//	PID_p = kp * PID_error;
+	//	//Calculate the I value in a range on +-3
+	//	PID_i = PID_i + (ki * PID_error);
+	//	//For derivative we need real time to calculate speed change rate
+	//	//Now we can calculate the D calue
+	//	PID_d = kd * ((PID_error - previous_error) * time_diff);
+	//	//Final total PID value is the sum of P + I + D
+	//	//filtered_rpm_0 = PID_p + PID_i + PID_d;
+	//	//filtered_rpm_0 = kp * rpm_0 + (kd * PID_error * time_diff);
+
+	//	previous_error = PID_error;
+
+	//	
+
+
+	//	//prev_rpm = plots_rpm[0].data[plots_rpm[0].data.size() - 1][1];
+	//	//PID_error = rpm_1 - prev_rpm;
+	//	//PID_p = kp * PID_error;
+	//	//PID_i = PID_i + (ki * PID_error);
+	//	//PID_d = kd * ((PID_error - previous_error) * time_diff);
+	//	//filtered_rpm_1 = PID_p + PID_i + PID_d;
+	//}
+
+	filtered_rpm_0 = filter_0.filter(rpm_0, ofGetElapsedTimeMillis());
+	filtered_rpm_1 = filter_1.filter(rpm_1, ofGetElapsedTimeMillis());
+
+	plots_rpm[0].update(rpm_0, rpm_1, filtered_rpm_0, filtered_rpm_1);
+
+	robots[0]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_0);
+	robots[1]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_1);
 	//robots[0]->move_velocity_rpm(rpm_0);
 	//robots[1]->move_velocity_rpm(rpm_1);
 }
@@ -441,9 +520,6 @@ void CableRobot2D::update_trajectories_2D()
 void CableRobot2D::draw_trajectories_2D()
 {
 
-	
-	trajectory.draw();
-	
 	ofPushStyle();
 	//for (int i = 0; i < trajectories_2D.size(); i++) {
 	//	trajectories_2D[i]->draw();
@@ -500,7 +576,7 @@ void CableRobot2D::draw_cables_2D() {
 	if (trajectory.get_num_targets() == 0)
 		end = ee->getGlobalPosition();
 	else
-		end = trajectory.get_curr_pos();
+		end = ee->getGlobalPosition(); //trajectory.get_curr_pos();
 	glm::vec3 end_0 = end + offset_0;
 	glm::vec3 end_1 = end + offset_1;
 
@@ -695,9 +771,9 @@ void CableRobot2D::on_x_offset_max_changed(float& val)
  */
 void CableRobot2D::on_zone_changed(float& val)
 {
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->set_zone(val);
-	}
+	//for (int i = 0; i < robots.size(); i++) {
+	//	robots[i]->set_zone(val);
+	//}
 }
 
 void CableRobot2D::on_move_to_pos()

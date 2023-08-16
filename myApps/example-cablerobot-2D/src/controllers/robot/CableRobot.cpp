@@ -442,7 +442,7 @@ void CableRobot::update()
 
 	if (move_type == MoveType::VEL) {
 
-		update_trajectory();
+		//update_trajectory();
 		
 		if (state != RobotState::E_STOP) {
 			if (is_in_bounds(abs(actual.getPosition().y), true)){	

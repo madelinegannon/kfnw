@@ -6,6 +6,7 @@
 #include "ofxXmlSettings.h"
 #include "CableRobot.h"
 #include "Trajectory.h"
+#include "OneEuroFilter.h"
 
 
 class CableRobot2D 
@@ -71,6 +72,105 @@ public:
 	void set_enabled(bool val);
 
 
+	struct TimeSeriesPlot
+	{
+		string name = "";
+		ofColor color_0 = ofColor::red;
+		ofColor color_1 = ofColor::blue;
+		int width = 500;
+		int height = 100;
+		int resolution = width;
+		float min = -1;
+		float max = 1;
+		vector<vector<float>> data;
+
+		vector<vector<float>> data_filtered;
+		
+		void update(float incoming_0, float incoming_1, float incoming_filtered_0, float incoming_filtered_1) {
+			vector<float> temp;
+			temp.push_back(incoming_0);
+			temp.push_back(incoming_1);
+			data.push_back(temp);
+
+			vector<float> temp_filtered;
+			temp_filtered.push_back(incoming_filtered_0);
+			temp_filtered.push_back(incoming_filtered_1);
+			data_filtered.push_back(temp_filtered);
+
+			if (data.size() > resolution) {
+				data.erase(data.begin());
+				data_filtered.erase(data_filtered.begin());
+			}
+
+		}
+
+		void draw() {
+			ofPushStyle();
+
+			// Draw Labels
+			ofDrawBitmapStringHighlight(name, 0, -15);
+			ofFill();
+			ofSetColor(255, 40);
+			ofDrawRectangle(0, 0, width, height);
+			ofDrawLine(0, height / 2, width, height / 2);
+			float offset_y = 7;
+			ofDrawBitmapStringHighlight(ofToString(max), -20, 0 + offset_y);
+			ofDrawBitmapStringHighlight(ofToString((max + min) / 2), -20, height / 2 + offset_y);
+			ofDrawBitmapStringHighlight(ofToString(min), -23, height + offset_y);
+
+			// Draw Raw Data
+			ofSetLineWidth(5);
+			ofNoFill();
+			ofSetColor(color_0, 80);
+			float step = width / resolution;
+			ofBeginShape();
+			for (int i = 0; i < data.size(); i++) {
+				float x = i * step;
+				float y = ofMap(data[i][0], min, max, 0, height);
+				ofVertex(x, y);
+			}
+			ofEndShape();
+
+			ofSetColor(color_1, 80);
+			ofBeginShape();
+			for (int i = 0; i < data.size(); i++) {
+				float x = i * step;
+				float y = ofMap(data[i][1], min, max, 0, height);
+				ofVertex(x, y);
+			}
+			ofEndShape();
+
+			// Draw Filtered Data
+			ofSetLineWidth(2);
+			ofSetColor(ofColor::yellow);
+			ofBeginShape();
+			for (int i = 0; i < data_filtered.size(); i++) {
+				float x = i * step;
+				float y = ofMap(data_filtered[i][0], min, max, 0, height);
+				ofVertex(x, y);
+			}
+			ofEndShape();
+
+			ofSetColor(ofColor::cyan);
+			ofBeginShape();
+			for (int i = 0; i < data_filtered.size(); i++) {
+				float x = i * step;
+				float y = ofMap(data_filtered[i][1], min, max, 0, height);
+				ofVertex(x, y);
+			}
+			ofEndShape();
+
+			ofPopStyle();
+		}
+
+		void reset() {
+			data.clear();
+			data_filtered.clear();
+		}
+	};
+	vector<TimeSeriesPlot> plots_rpm;
+
+
 
 
 	// GUI Listeners
@@ -127,4 +227,20 @@ public:
 	ofColor mode_color_disabled;
 	ofColor mode_color_not_homed;
 	ofColor mode_color_estopped;
+
+	double frequency = 60; // Hz
+	double mincutoff = 1.0; // Hz
+	double beta = 0.1;
+	double dcutoff = 1.0;
+	OneEuroFilter filter_0;
+	OneEuroFilter filter_1;
+
+	// TEMP PID Controller
+	float PID_error = 0;
+	float previous_error = 0;
+	float elapsedTime, Time, timePrev;
+	int PID_value = 0;
+	//PID constants
+	int kp = 10.0;   int ki = 0.3;   int kd = 1000.5;
+	int PID_p = 0;    int PID_i = 0;    int PID_d = 0;
 };

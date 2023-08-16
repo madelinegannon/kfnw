@@ -177,7 +177,7 @@ void MotionController::setup_gui()
     params.add(resolution.set("Resolution", 30, 3, 60));
     params.add(offset_theta.set("Offset_Theta", 0, -180, 180));
     params.add(speed.set("Speed", .001, 0, .1));
-    params.add(duration.set("Duration (Sec)", 5, 0.1, 10));
+    params.add(duration.set("Duration (Sec)", 15, 0.1, 30));
     params.add(play.set("Play", false));
     params.add(reset.set("Reset"));
 
