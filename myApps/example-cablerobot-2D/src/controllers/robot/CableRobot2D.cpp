@@ -61,19 +61,21 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 
 	trajectory.max_vel.set(vel_limit.get() / .50);
 
-	TimeSeriesPlot tsp;
-	tsp.name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
-	tsp.min = vel_limit.get() * -1;
-	tsp.max = vel_limit.get() * 1;
-	plots_rpm.push_back(tsp);
+	plot.name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
+	plot.min = vel_limit.get() * -1;
+	plot.max = vel_limit.get() * 1;
+	plot.colors[0] = ofColor(ofColor::red);
+	plot.colors[1] = ofColor::yellow;
+	plot.colors[2] = ofColor(ofColor::blue);
+	plot.colors[3] = ofColor::cyan;
 
-	frequency = 30; // Hz
-	mincutoff = 0.00001; // FIXME
-	beta = 0.005;// 0.5;      // FIXME
-	dcutoff = 0.5;   // this one should be ok
+	//frequency = 30; // Hz
+	//mincutoff = 0.00001; // FIXME
+	//beta = 0.005;// 0.5;      // FIXME
+	//dcutoff = 0.5;   // this one should be ok
 
-	filter_0.setup(frequency, mincutoff, beta, dcutoff);
-	filter_1.setup(frequency, mincutoff, beta, dcutoff);
+	//filter_0.setup(frequency, mincutoff, beta, dcutoff);
+	//filter_1.setup(frequency, mincutoff, beta, dcutoff);
 }
 
 void CableRobot2D::update()
@@ -251,16 +253,6 @@ void CableRobot2D::draw()
 
 void CableRobot2D::draw_gui() {
 	panel.draw();
-
-	// draw the RPM Plot for just the first cablebot
-	//if (robots[0]->get_id() == 0) {
-	//	ofPushMatrix();
-	//	for (auto& plot : plots_rpm) {
-	//		ofTranslate(ofGetWidth() - 600, ofGetHeight() / 2);
-	//		plot.draw();
-	//	}
-	//	ofPopMatrix();
-	//}
 	
 	if (debugging) {
 		int y = panel.getPosition().y + panel.getHeight();
@@ -459,7 +451,7 @@ void CableRobot2D::update_trajectories_2D()
 	}
 
 	// arrive at target
-	float dist_threshold = 50;// vel_limit.get() * 1.75;
+	float dist_threshold = 50;
 	if (dist_0 < dist_threshold) {
 		rpm_0 = ofMap(dist_0, dist_threshold, 0, rpm_0, 0);
 	}
@@ -478,43 +470,31 @@ void CableRobot2D::update_trajectories_2D()
 	// PID Experiment
 	float filtered_rpm_0 = 0;
 	float filtered_rpm_1 = 0;
-	//if (plots_rpm[0].data.size() > 0){
-	//	// Get error between setpoint RPM and real value
-	//	float prev_rpm = plots_rpm[0].data[plots_rpm[0].data.size() - 1][0];
-	//	PID_error = rpm_0 - prev_rpm;
-	//	//Calculate the P value
-	//	PID_p = kp * PID_error;
-	//	//Calculate the I value in a range on +-3
-	//	PID_i = PID_i + (ki * PID_error);
-	//	//For derivative we need real time to calculate speed change rate
-	//	//Now we can calculate the D calue
-	//	PID_d = kd * ((PID_error - previous_error) * time_diff);
-	//	//Final total PID value is the sum of P + I + D
-	//	//filtered_rpm_0 = PID_p + PID_i + PID_d;
-	//	//filtered_rpm_0 = kp * rpm_0 + (kd * PID_error * time_diff);
 
-	//	previous_error = PID_error;
+	//filtered_rpm_0 = filter_0.filter(rpm_0, ofGetElapsedTimeMillis());
+	//filtered_rpm_1 = filter_1.filter(rpm_1, ofGetElapsedTimeMillis());
 
-	//	
+	pd_controller_0.update(rpm_0);
+	pd_controller_1.update(rpm_1);
 
+	
+	plot_data[0] = rpm_0;
+	//plot_data[1] = filtered_rpm_0;
+	plot_data[1] = (pd_controller_0.get_smoothed_val());
+	plot_data[2] = rpm_1;
+	//plot_data[3] = filtered_rpm_1;
+	plot_data[3] = (pd_controller_1.get_smoothed_val());
+	plot.update(plot_data);
 
-	//	//prev_rpm = plots_rpm[0].data[plots_rpm[0].data.size() - 1][1];
-	//	//PID_error = rpm_1 - prev_rpm;
-	//	//PID_p = kp * PID_error;
-	//	//PID_i = PID_i + (ki * PID_error);
-	//	//PID_d = kd * ((PID_error - previous_error) * time_diff);
-	//	//filtered_rpm_1 = PID_p + PID_i + PID_d;
-	//}
-
-	filtered_rpm_0 = filter_0.filter(rpm_0, ofGetElapsedTimeMillis());
-	filtered_rpm_1 = filter_1.filter(rpm_1, ofGetElapsedTimeMillis());
-
-	plots_rpm[0].update(rpm_0, rpm_1, filtered_rpm_0, filtered_rpm_1);
-
-	robots[0]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_0);
-	robots[1]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_1);
-	//robots[0]->move_velocity_rpm(rpm_0);
-	//robots[1]->move_velocity_rpm(rpm_1);
+	robots[0]->get_motor_controller()->get_motor()->move_velocity(pd_controller_0.get_smoothed_val());
+	robots[1]->get_motor_controller()->get_motor()->move_velocity(pd_controller_1.get_smoothed_val());
+	//robots[0]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_0);
+	//robots[1]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_1);
+	////robots[0]->move_velocity_rpm(rpm_0);
+	////robots[1]->move_velocity_rpm(rpm_1);
+	/// 
+	rpm_0 = 0;
+	rpm_1 = 0;
 }
 
 void CableRobot2D::draw_trajectories_2D()
@@ -632,6 +612,9 @@ void CableRobot2D::setup_gui()
 	params_move.add(move_to_pos.set("Move_Pos"));
 	params_move.add(move_to_vel.set("Move_Vel", false));
 	params_move.add(params_motion);
+
+	params_move.add(pd_controller_0.params);
+	params_move.add(pd_controller_1.params);
 
 
 	// bind GUI listeners

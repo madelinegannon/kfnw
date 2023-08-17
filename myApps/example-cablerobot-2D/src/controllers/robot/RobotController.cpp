@@ -265,8 +265,9 @@ void RobotController::threadedFunction()
 						robots_2D[i]->update_gui(&panel);
 
 					}
-					robots_2D[0]->plots_rpm[0].name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
-					robots_2D[1]->plots_rpm[0].name = "Bot 2 RPM: Motor 3 (RED), Motor 4 (BLUE)";
+
+					robots_2D[0]->plot.name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
+					robots_2D[1]->plot.name = "Bot 2 RPM: Motor 3 (RED), Motor 4 (BLUE)";
 				}
 				// check if system is ready to move (all motors are homed)
 				check_for_system_ready();
@@ -373,10 +374,11 @@ void RobotController::draw_gui()
 				robots_2D[i]->draw_gui();
 
 				ofPushMatrix();
-				for (auto& plot : robots_2D[i]->plots_rpm) {
+				//for (auto& plot : robots_2D[i]->plots_rpm) {
 					ofTranslate(ofGetWidth() - 550, i * 150 + 60);
-					plot.draw();
-				}
+				//	plot.draw();
+				//}
+					robots_2D[i]->plot.draw();
 				ofPopMatrix();
 			}
 		}			
