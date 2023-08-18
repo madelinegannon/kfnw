@@ -6,7 +6,9 @@
 #include "ofxGizmo.h"
 #include "CableDrum.h"
 #include "MotorController.h"
-#include "Trajectory.h"
+
+#include "../TimeSeriesPlot.h"
+#include "../PD_Controller.h"
 
 #include "pubSysCls.h"
 
@@ -30,6 +32,8 @@ private:
 
     int get_rotation_direction();
 
+    float desired_velocity = 0.0;
+
     // Kinematics
     ofNode* origin;     // external parent node (in world coordinates)
     ofNode* ee;         // external parent ee node
@@ -37,9 +41,8 @@ private:
     ofNode tangent = ofNode();     // tangent point on the cable drum
     ofNode target = ofNode();      // desired ee position
     ofNode actual = ofNode();      // actual ee position
-
-    void update_trajectory();
    
+    void setup_plots();
 
 
     MotorController* motor_controller;
@@ -93,8 +96,6 @@ public:
     void key_pressed(int key);
     int get_id();
 
-    Trajectory trajectory;
-
     void configure(ofNode* _origin,
         ofNode* _ee,
         glm::vec3 base,
@@ -142,9 +143,14 @@ public:
     void move_position(float target_pos, bool absolute = true);
     void move_velocity(float target_pos);
     void move_velocity_rpm(float rpm);
-    bool move_done = false;
-    void remove_target(int index = 0);
+    void set_desired_velocity(float rpm);
+    float compute_velocity();
+    float velocity_scalar = 1.0;
+    float actual_to_desired_distance = 0;
+    PD_Controller velocity_controller;
 
+    TimeSeriesPlot plot_vel = TimeSeriesPlot(2);
+    vector<float> plot_data_vel = { 0, 0 };
 
     void stop();
     void set_e_stop(bool val);
@@ -189,6 +195,9 @@ public:
     ofParameter<float> move_to;
     ofParameter<void> move_to_pos;
     ofParameter<bool> move_to_vel;
+
+    ofParameterGroup params_motion;
+    ofParameter<float> zone;
 
     ofParameterGroup params_limits;
     ofParameter<float> accel_limit = 200;

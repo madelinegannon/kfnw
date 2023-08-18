@@ -12,6 +12,8 @@ CableRobot::CableRobot(SysManager& SysMgr, INode* node, bool load_config_file)
 	if (load_config_file) {
 		load_config_from_file();
 	}
+
+	setup_plots();
 }
 
 CableRobot::CableRobot(glm::vec3 base)
@@ -70,10 +72,6 @@ void CableRobot::configure(ofNode* _origin, ofNode* _ee, glm::vec3 base, Groove 
 		float x = this->base.getPosition().x + tangent.getPosition().x - ee->getPosition().x;
 		target.setPosition(x, 0, ee->getPosition().z);
 	}
-
-	// set the trajectory starting point
-	trajectory.reset(target.getGlobalPosition());
-	trajectory.desired_pos.set(target.getGlobalPosition());
 
 	if (load_config_file) {
 		load_config_from_file();
@@ -137,9 +135,6 @@ void CableRobot::configure(ofNode* _origin, glm::vec3 base, ofNode* _ee)
 		gizmo_ee.setDisplayScale(.5);
 		gizmo_ee.setRotationAxisMask(IGizmo::AXIS_Z);
 	}
-	//trajectory.reset();
-	trajectory.curr_pos.set(target.getGlobalPosition());
-	trajectory.desired_pos.set(target.getGlobalPosition());
 
 	if (load_config_file) {
 		load_config_from_file();
@@ -230,7 +225,7 @@ bool CableRobot::is_torque_in_limits()
 	auto torque_measured = motor_controller->get_motor()->get()->Motion.TrqMeasured.Value();
 	//info_torque_actual.set(ofToString(torque_measured));
 	if (torque_measured > torque_max.get() || torque_measured < torque_min.get()) {
-		ofLogWarning(" CableRobot::is_torque_in_limits()") << "\tRobot " << ofToString(motor_controller->get_motor_id()) << " is OUT OF TORQUE RANGE with value of " << ofToString(torque_measured) << endl;
+		ofLogWarning(__FUNCTION__) << "\tRobot " << ofToString(motor_controller->get_motor_id()) << " is OUT OF TORQUE RANGE with value of " << ofToString(torque_measured) << endl;
 		return false;
 	}
 	return true;
@@ -247,7 +242,7 @@ void CableRobot::load_config_from_file(string filename)
 	int serial_number = int(motor_controller->get_motor()->get()->Info.SerialNumber.Value());
 	if (filename == "")
 		filename = "robot_config_" + ofToString(serial_number) + ".xml";
-	ofLogNotice("CableRobot::load_config_from_file") << "Loading config file: " << filename;
+	ofLogNotice(__FUNCTION__) << "Loading config file: " << filename;
 	try
 	{
 		bool val = config.loadFile(filename);
@@ -255,15 +250,15 @@ void CableRobot::load_config_from_file(string filename)
 			// Check that the serial numbers match
 			int sn = config.getValue("config:serial_number", 0);
 			if (sn != serial_number) {
-				ofLogWarning("CableRobot::load_config_from_file") << "Cannot load config file: Wrong serial number. Loaded " << ofToString(sn) << ", but should be " << ofToString(serial_number);
+				ofLogWarning(__FUNCTION__) << "Cannot load config file: Wrong serial number. Loaded " << ofToString(sn) << ", but should be " << ofToString(serial_number);
 				return;
 			}
 
 			auto_home = config.getValue("config:auto_home", 0);
 
-			ofLogNotice("CableRobot::load_config_from_file") << "\tSettings: " ;
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tSerial Number: " << sn;
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tAuto Homing: " << (auto_home ? "TRUE" : "FALSE");
+			ofLogNotice(__FUNCTION__) << "\tSettings: " ;
+			ofLogNotice(__FUNCTION__) << "\t\tSerial Number: " << sn;
+			ofLogNotice(__FUNCTION__) << "\t\tAuto Homing: " << (auto_home ? "TRUE" : "FALSE");
 
 			// kinematics
 			float x = config.getValue("config:kinematics:base:X", 0);
@@ -281,10 +276,10 @@ void CableRobot::load_config_from_file(string filename)
 			z = config.getValue("config:kinematics:target:Z", 0);
 			target.setPosition(x, y, z);
 
-			ofLogNotice("CableRobot::load_config_from_file") << "\Kinematics: ";
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tBase Local Pos: " << ofToString(base.getPosition());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tTangent Local Pos: " << ofToString(tangent.getPosition());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tTarget Local Pos: " << ofToString(target.getPosition());
+			ofLogNotice(__FUNCTION__) << "\Kinematics: ";
+			ofLogNotice(__FUNCTION__) << "\t\tBase Local Pos: " << ofToString(base.getPosition());
+			ofLogNotice(__FUNCTION__) << "\t\tTangent Local Pos: " << ofToString(tangent.getPosition());
+			ofLogNotice(__FUNCTION__) << "\t\tTarget Local Pos: " << ofToString(target.getPosition());
 
 			// limits
 			vel_limit.set(config.getValue("config:limits:vel_limit", 0));
@@ -295,22 +290,22 @@ void CableRobot::load_config_from_file(string filename)
 			torque_min.set(config.getValue("config:limits:torque_min", 0));
 			torque_max.set(config.getValue("config:limits:torque_max", 0));
 
-			ofLogNotice("CableRobot::load_config_from_file") << "\tLimits: ";
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tVel Limit: " << ofToString(vel_limit.get());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tAccel Limit: " << ofToString(accel_limit.get());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tBounds Min: " << ofToString(bounds_min.get());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tBounds Max: " << ofToString(bounds_max.get());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tBounds Shutdown: " << ofToString(position_shutdown);
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tTorque Min: " << ofToString(torque_min.get());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tTorque Max: " << ofToString(torque_max.get());
+			ofLogNotice(__FUNCTION__) << "\tLimits: ";
+			ofLogNotice(__FUNCTION__) << "\t\tVel Limit: " << ofToString(vel_limit.get());
+			ofLogNotice(__FUNCTION__) << "\t\tAccel Limit: " << ofToString(accel_limit.get());
+			ofLogNotice(__FUNCTION__) << "\t\tBounds Min: " << ofToString(bounds_min.get());
+			ofLogNotice(__FUNCTION__) << "\t\tBounds Max: " << ofToString(bounds_max.get());
+			ofLogNotice(__FUNCTION__) << "\t\tBounds Shutdown: " << ofToString(position_shutdown);
+			ofLogNotice(__FUNCTION__) << "\t\tTorque Min: " << ofToString(torque_min.get());
+			ofLogNotice(__FUNCTION__) << "\t\tTorque Max: " << ofToString(torque_max.get());
 
 			// jogging
 			jog_vel.set(config.getValue("config:jogging:jog_vel", 0));
 			jog_accel.set(config.getValue("config:jogging:jog_accel", 0));
 
-			ofLogNotice("CableRobot::load_config_from_file") << "\tJogging: ";
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tJog Vel: " << ofToString(jog_vel.get());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tJog Accel: " << ofToString(jog_accel.get());
+			ofLogNotice(__FUNCTION__) << "\tJogging: ";
+			ofLogNotice(__FUNCTION__) << "\t\tJog Vel: " << ofToString(jog_vel.get());
+			ofLogNotice(__FUNCTION__) << "\t\tJog Accel: " << ofToString(jog_accel.get());
 
 			// cable drum
 			drum.direction = Groove(config.getValue("config:cable_drum:direction", 0));
@@ -320,19 +315,19 @@ void CableRobot::load_config_from_file(string filename)
 			z = config.getValue("config:kinematics:tangent:Z", 0);
 			drum.set_tangent(glm::vec3(x, y, z));
 
-			ofLogNotice("CableRobot::load_config_from_file") << "\tCable Drum: ";
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tDirection: " << (drum.direction == Groove::LEFT_HANDED ? "LEFT_HANDED" : "RIGHT_HANDED");
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tDrum Diameter: " << ofToString(drum.get_diameter());
-			ofLogNotice("CableRobot::load_config_from_file") << "\t\tDrum Tangent: " << ofToString(drum.get_tangent()) << endl;
+			ofLogNotice(__FUNCTION__) << "\tCable Drum: ";
+			ofLogNotice(__FUNCTION__) << "\t\tDirection: " << (drum.direction == Groove::LEFT_HANDED ? "LEFT_HANDED" : "RIGHT_HANDED");
+			ofLogNotice(__FUNCTION__) << "\t\tDrum Diameter: " << ofToString(drum.get_diameter());
+			ofLogNotice(__FUNCTION__) << "\t\tDrum Tangent: " << ofToString(drum.get_tangent()) << endl;
 
 		}
 		else {
-			ofLogWarning("CableRobot::load_config_from_file") << "No config file found at: /bin/data/" << filename;
+			ofLogWarning(__FUNCTION__) << "No config file found at: /bin/data/" << filename;
 		}
 	}
 	catch (const std::exception& e)
 	{
-		ofLogError("CableRobot::load_config_from_file") << e.what();
+		ofLogError(__FUNCTION__) << e.what();
 	}
 	
 	
@@ -442,11 +437,10 @@ void CableRobot::update()
 
 	if (move_type == MoveType::VEL) {
 
-		//update_trajectory();
-		
 		if (state != RobotState::E_STOP) {
 			if (is_in_bounds(abs(actual.getPosition().y), true)){	
-				//move_velocity_rpm(trajectory.get_rpm());		// MAD EDIT 8/14/2023		
+				// @FIXME: do move
+				
 			}
 			else {
 				stop();
@@ -456,9 +450,9 @@ void CableRobot::update()
 		}
 	}
 	else {
-		//ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " target global position: " << ofToString(target.getGlobalPosition());
-		//ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " ee global position: " << ofToString(ee->getGlobalPosition());
-		//ofLogNotice("CableRobot::configure") << motor_controller->get_motor_id() << " gizmo_ee global position: " << ofToString(gizmo_ee.getTranslation()) << endl;
+		//ofLogNotice(__FUNCTION__) << motor_controller->get_motor_id() << " target global position: " << ofToString(target.getGlobalPosition());
+		//ofLogNotice(__FUNCTION__) << motor_controller->get_motor_id() << " ee global position: " << ofToString(ee->getGlobalPosition());
+		//ofLogNotice(__FUNCTION__) << motor_controller->get_motor_id() << " gizmo_ee global position: " << ofToString(gizmo_ee.getTranslation()) << endl;
 	}
 
 	// update the actual positions
@@ -510,7 +504,6 @@ void CableRobot::draw()
 
 	if (debugging) {
 		// draw the 1D trajectory and actual position
-		trajectory.draw();
 		draw_cable(tangent.getGlobalPosition(), actual.getGlobalPosition());
 
 		// draw distance to target
@@ -586,7 +579,7 @@ bool CableRobot::shutdown(int timeout)
 	move_to_vel.set(false);
 	move_type = MoveType::POS;
 
-	ofLogNotice("CableRobot::on_run_shutdown") << "Shutting Down CableRobot " << motor_controller->get_motor_id();
+	ofLogNotice(__FUNCTION__) << "Shutting Down CableRobot " << motor_controller->get_motor_id();
 	vel_limit.set(20);
 	accel_limit.set(200);
 
@@ -606,7 +599,7 @@ bool CableRobot::shutdown(int timeout)
 	while (shutting_down) {
 		// check if we've timed out
 		if (ofGetElapsedTimeMillis() > timer + (timeout * 1000)) {
-			ofLogWarning("CableRobot::shutdown") << "CableRobot " << motor_controller->get_motor_id() << " did not finish shutting down. Timed out after " << timeout << " seconds.";
+			ofLogWarning(__FUNCTION__) << "CableRobot " << motor_controller->get_motor_id() << " did not finish shutting down. Timed out after " << timeout << " seconds.";
 			return false;
 		}
 		auto pos = count_to_mm(motor_controller->get_motor()->get_position(), true);
@@ -769,65 +762,14 @@ bool CableRobot::is_ready()
 	return is_homed() && is_enabled();
 }
 
-void CableRobot::update_trajectory()
+
+void CableRobot::setup_plots()
 {
-	////////////////////////////
-	// MAD EDIT 08/10/2023 
-	bool remove_target = false;
-	if (trajectory.get_num_targets() == 0){
-		remove_target = false;
-	}
-	else {
-		float dist_sq = trajectory.curr_pos.distanceSquared(trajectory.path.getVertices()[0]);
-		if (dist_sq <= trajectory.look_ahead_radius.get() * trajectory.look_ahead_radius.get() && trajectory.get_num_targets() >= 2) {
-			move_done = true;
-		}
-	}
-	////////////////////////////
-
-	// check if we need to remove a target from the world trajectory
-	if (trajectory.get_num_targets() < trajectory_world_coords.getVertices().size() &&
-		trajectory_world_coords.getVertices().size() > 0) {
-		trajectory_world_coords.removeVertex(0);
-	}
-
-	//// compensate for x-axis tilt
-	//float diff = planar_compensation_x.get() - prev_planar_compensation_x;
-	//glm::vec3 x_tilt_compensation = glm::vec3(0, -diff, 0);
-	//target.setGlobalPosition(target.getGlobalPosition() + x_tilt_compensation);
-
-	// get the distance to the target and the distance to the trajectory's last target
-	float dist = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
-
-	// check if we need to add a target to the trajectory
-	bool add_target = false;
-	if (trajectory.get_num_targets() == 0)
-		add_target = true;
-	else {
-		// add the target to the trajectory path, but don't add small moves
-		float dist_sq_to_last_target = glm::distance2(tangent.getGlobalPosition(), trajectory.get_last_target());
-		float dist_diff_sq = abs(dist*dist - dist_sq_to_last_target);
-		float threshold = 10;
-		if (dist_diff_sq > threshold * threshold) {
-			//	add_target = true;
-		}
-	}
-
-	if (add_target){
-		// get the correct sign for the distance target
-		tangent.getGlobalPosition().y > target.getGlobalPosition().y ? dist *= -1 : dist *= 1;
-		// convert the distance into a 1D target for the trajectory
-		glm::vec3 trajectory_target = glm::vec3(tangent.getGlobalPosition());
-		// compensate for lateral direction
-		trajectory_target.y += dist;
-		// add to the trajectory
-		trajectory.add_target(trajectory_target);
-		// save the trajectory targets as 3D world coordinates, too
-		trajectory_world_coords.addVertex(target.getGlobalPosition());
-	}
-	
-	// update the trajectory's position / vel / heading / rpm
-	trajectory.update(actual.getGlobalPosition());
+	plot_vel.name = "Motor " + ofToString(get_id()) + ": Raw (RED), Filtered (YELLOW)";
+	plot_vel.min = vel_limit.get() * -1;
+	plot_vel.max = vel_limit.get() * 1;
+	plot_vel.colors[0] = ofColor(ofColor::red);
+	plot_vel.colors[1] = ofColor::yellow;
 }
 
 void CableRobot::setup_gui()
@@ -897,23 +839,25 @@ void CableRobot::setup_gui()
 	bounds_max.addListener(this, &CableRobot::on_bounds_changed);
 	bounds_min.addListener(this, &CableRobot::on_bounds_changed);
 
+	params_motion.setName("Motion");
+	params_motion.add(zone.set("Approach_Zone", 50, 0, 300));
+	params_motion.add(velocity_controller.params);
+
 	vel_limit.set(100);
 	accel_limit.set(800);
-	trajectory.max_vel.set(vel_limit.get() / 2.0);
 
 	panel.add(params_control);
 	panel.add(params_info);
 	panel.add(params_limits);
 	panel.add(params_jog);
 	panel.add(params_move);
-	panel.add(trajectory.params);
+	panel.add(params_motion);
 
 	// Minimize less important parameters
 	panel.getGroup("Info").minimize();
 	panel.getGroup("Limits").minimize();
 	panel.getGroup("Jogging").minimize();
 	panel.getGroup("Info").minimize();
-	panel.getGroup("Trajectory").minimize();
 
 	is_setup = true;
 }
@@ -1026,11 +970,11 @@ void CableRobot::move_position(float target_pos, bool is_absolute)
 				motor_controller->get_motor()->move_position(count, true);
 			}
 			else
-				ofLogWarning("CableRobot::move_position") << "Move not sent: The target move would have been out of bounds.";
+				ofLogWarning(__FUNCTION__) << "Move not sent: The target move would have been out of bounds.";
 		}
 		else {
 			// @TODO
-			ofLogWarning("CableRobot::move_position") << "Move not sent: Relative move not implemented yet.";
+			ofLogWarning(__FUNCTION__) << "Move not sent: Relative move not implemented yet.";
 		}
 	}
 	else {
@@ -1041,7 +985,7 @@ void CableRobot::move_position(float target_pos, bool is_absolute)
 			msg = "Cannot move Robot " + ofToString(get_id()) + ". It must be homed first.";
 		else
 			msg = "Cannot move Robot " + ofToString(get_id()) + ". It must be enabled first.";
-		ofLogWarning("CableRobot::move_velocity") << msg;
+		ofLogWarning(__FUNCTION__) << msg;
 	}
 }
 
@@ -1063,16 +1007,16 @@ void CableRobot::move_velocity_rpm(float rpm)
 	if (!is_estopped() && is_enabled() && is_homed()) {
 		//cout << "RPM from Trajectory: " << rpm << endl;
 
-		// get whether we're moving up (1) or down (-1)
-		if (trajectory.get_heading().y != 0)
-			rpm *= trajectory.get_heading().y * -1;
-		// convert for cable drum direction 
-		rpm *= get_rotation_direction();
+		//// get whether we're moving up (1) or down (-1)
+		//if (trajectory.get_heading().y != 0)
+		//	rpm *= trajectory.get_heading().y * -1;
+		//// convert for cable drum direction 
+		//rpm *= get_rotation_direction();
 		// clamp to velocity limit
 		//cout << "MOTOR " << get_id() << ", incoming RPM: " << rpm << endl;
 		rpm = ofClamp(rpm, -vel_limit.get(), vel_limit.get());
 		//cout << "\tfinal RPM: " << rpm << endl;
-		
+				
 		// send velocity command to motor
 		motor_controller->get_motor()->move_velocity(rpm);
 
@@ -1087,21 +1031,53 @@ void CableRobot::move_velocity_rpm(float rpm)
 			msg = "Cannot move Robot " + ofToString(get_id()) + ". It must be homed first.";
 		else
 			msg = "Cannot move Robot " + ofToString(get_id()) + ". It must be enabled first.";
-		ofLogWarning("CableRobot::move_velocity") << msg;
+		ofLogWarning(__FUNCTION__) << msg;
 	}
 }
 
-void CableRobot::remove_target(int index)
+float CableRobot::compute_velocity()
 {
-	trajectory.remove_target(index);
-	move_done = false;
+	// Get distance from actual to desired position
+	float pos_actual = get_position_actual();
+	float pos_desired = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
+	float dist = abs(pos_desired - pos_actual);
+	actual_to_desired_distance = dist;
+	float heading = (pos_desired > pos_actual) ? -1 : 1;
+
+	// Scale velocity to sync with external motors (scalar = 1.0 for 1D configurations)
+	// @NOTE: velocity_scalar is updated by 2D / 3D configurations
+	float rpm = vel_limit.get() * velocity_scalar;
+
+	// reset the velocity scalar every time
+	velocity_scalar = 1.0;
+	
+	// Map to 0 when arriving at the target
+	float dist_threshold = zone.get();
+	if (dist < dist_threshold) {
+		rpm = ofMap(dist, dist_threshold, 0, rpm, 0);
+	}
+
+	// Set the velocity heading
+	rpm *= heading;
+
+	// Update the velocity controller
+	velocity_controller.update(rpm);
+
+	// record the raw and filtered rpm for visualization
+	if (debugging) {
+		plot_data_vel[0] = rpm;
+		plot_data_vel[1] = velocity_controller.get_smoothed_val();
+		plot_vel.update(plot_data_vel);
+	}
+
+	// return the smoothed velocity
+	return velocity_controller.get_smoothed_val();
 }
 
 void CableRobot::stop()
 {
 	move_type = MoveType::POS;
 	motor_controller->get_motor()->stop();
-	move_done = true;
 
 	// upadate the gui
 	info_velocity_target.set("0");
@@ -1190,7 +1166,7 @@ void CableRobot::on_run_shutdown()
 void CableRobot::on_jog_up()
 {
 	if (!is_enabled()) {
-		ofLogWarning("CableRobot::on_jog_up") << "Enable Motor " << motor_controller->get_motor_id() << " before trying to jog.";
+		ofLogWarning(__FUNCTION__) << "Enable Motor " << motor_controller->get_motor_id() << " before trying to jog.";
 	}
 	else {
 		// check if the target jogging distance is in bounds
@@ -1212,7 +1188,7 @@ void CableRobot::on_jog_up()
 			motor_controller->get_motor()->set_acceleration(curr_accel);
 		}
 		else {
-			ofLogWarning("CableRobot::on_jog_up") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_min: " << bounds_min.get();
+			ofLogWarning(__FUNCTION__) << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_min: " << bounds_min.get();
 			move_position(bounds_min.get(), true); 
 		}
 	}
@@ -1227,7 +1203,7 @@ void CableRobot::on_jog_up()
  */
 void CableRobot::jog_down(bool override) {
 	if (!is_enabled()) {
-		ofLogWarning("CableRobot::on_jog_down") << "Enable Motor " << motor_controller->get_motor_id() << " before trying to jog.";
+		ofLogWarning(__FUNCTION__) << "Enable Motor " << motor_controller->get_motor_id() << " before trying to jog.";
 	}
 	else {
 		// check if the target jogging distance is in bounds
@@ -1250,7 +1226,7 @@ void CableRobot::jog_down(bool override) {
 				motor_controller->get_motor()->set_acceleration(curr_accel);
 			}
 			else {
-				ofLogWarning("CableRobot::on_jog_down") << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_max: " << bounds_max.get();
+				ofLogWarning(__FUNCTION__) << "Moving CableRobot " << motor_controller->get_motor_id() << " to bounds_max: " << bounds_max.get();
 				move_position(bounds_max.get(), true);
 			}
 		}
@@ -1270,7 +1246,7 @@ void CableRobot::jog_down(bool override) {
  */
 void CableRobot::set_zone(float val)
 {
-	trajectory.look_ahead_radius.set(val);
+
 }
 
 /**
@@ -1307,7 +1283,6 @@ void CableRobot::on_move_to_vel(bool &val)
 	else {
 		stop();
 		stop();
-		trajectory.reset(target.getGlobalPosition());
 	}
 }
 
@@ -1327,8 +1302,6 @@ void CableRobot::on_vel_limit_changed(float& val)
 	motor_controller->get_motor()->set_velocity(val);	
 	// update the gui
 	info_vel_limit.set(ofToString(val));
-	// update the trajectory's max vel
-	trajectory.max_vel.set(val / 2.0);
 }
 
 /**

@@ -11,8 +11,8 @@ MotionController::MotionController()
     for (int i = 0; i < 2; i++) {
         ofNode n;
         n.setGlobalPosition(pos.x, pos.y, pos.z + (i * offset_z));
-        paths.push_back(create_line(n, 750));
-        //paths.push_back(create_polygon(n, radius.get(), resolution.get(), offset_theta.get()));
+        //paths.push_back(create_line(n, 750));
+        paths.push_back(create_polygon(n, radius.get(), resolution.get(), offset_theta.get()));
     }
 
     // add a reference to each path's target
@@ -38,8 +38,8 @@ MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, flo
     for (int i = 0; i < 2; i++) {
         ofNode n;
         n.setGlobalPosition(pos.x, pos.y, pos.z + (i * offset_z));
-        paths.push_back(create_line(n, 750));
-        //paths.push_back(create_polygon(n, radius.get(), resolution.get(), offset_theta.get()));
+        //paths.push_back(create_line(n, 750));
+        paths.push_back(create_polygon(n, radius.get(), resolution.get(), offset_theta.get()));
     }
 
     // add a reference to each path's target

@@ -4,8 +4,6 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 {
 	robots.push_back(top_left);
 	robots.push_back(top_right);
-	//trajectories_2D.push_back(new Trajectory());
-	//trajectories_2D.push_back(new Trajectory());
 
 
 	this->base_top_left = base_top_left;
@@ -18,9 +16,7 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	
 	// Setup the end effector
 	this->ee = new ofNode();
-	//cout << "robot base world pos: "
 	this->ee->setParent(top_left->get_base());
-	//this->ee->setParent(*_origin);
 	float h = robots[0]->bounds_max - robots[0]->bounds_min;
 	float width = glm::distance(top_left->get_base().getGlobalPosition(), top_right->get_base().getGlobalPosition());
 	glm::vec3 pos = glm::vec3((width / 2.0), - h / 2, top_left->get_base().getGlobalPosition().z);
@@ -59,138 +55,72 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 
 	get_status();
 
-	trajectory.max_vel.set(vel_limit.get() / .50);
-
 	plot.name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
+	plot.resolution = 125/2.0;
 	plot.min = vel_limit.get() * -1;
 	plot.max = vel_limit.get() * 1;
+	plot.reset();
 	plot.colors[0] = ofColor(ofColor::red);
 	plot.colors[1] = ofColor::yellow;
 	plot.colors[2] = ofColor(ofColor::blue);
 	plot.colors[3] = ofColor::cyan;
 
-	//frequency = 30; // Hz
-	//mincutoff = 0.00001; // FIXME
-	//beta = 0.005;// 0.5;      // FIXME
-	//dcutoff = 0.5;   // this one should be ok
-
-	//filter_0.setup(frequency, mincutoff, beta, dcutoff);
-	//filter_1.setup(frequency, mincutoff, beta, dcutoff);
 }
 
 void CableRobot2D::update()
 {
 	update_gizmo();
-	// update bounds
-	bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
+	
 
-	// check if we need to go to the next trajectory target
-	//bool remove_target = true;
 	//for (int i = 0; i < robots.size(); i++) {
-	//	if (!robots[i]->move_done)
-	//		remove_target = false;
-	//}
-	//if (remove_target) {
-	//	for (int i = 0; i < robots.size(); i++) {
-	//		robots[i]->remove_target(0);
+	//	// monitor the torque and stop all motors if unexpected value
+	//	if (robots[i]->is_torque_in_limits()) {
+
+	//		//robots[i]->update();
+	//	}
+	//	else {
+	//		if (robots[i]->is_moving()) {
+	//			ofLogNotice("CableRobot2D::update()") << "TORQUE OUT OF RANGE: Stopping Robots " << endl;
+	//			stop();
+	//		}
 	//	}
 	//}
 
-	for (int i = 0; i < robots.size(); i++) {
-		// monitor the torque and stop all motors if unexpected value
-		if (robots[i]->is_torque_in_limits()) {
-			////// compensate for lateral direction
-			////float x = ee->getPosition().x;		// get local x value
-			////float x_offset = 0;
-			////if (i == 0) {					// shorten motor 0 when we're on the right side
-			////	if (x >= bounds.getWidth() / 2)
-			////		x_offset = ofMap(x, bounds.getWidth()/2, bounds.getWidth(), 0, -x_offset_max.get(), true);
-			////	else
-			////		x_offset = 0;
-			////}
-			////else if (i == 1) {				// shorten motor 1 when we're on the left side
-			////	if (x < bounds.getWidth() / 2)
-			////		x_offset = ofMap(x, 0, bounds.getWidth()/2, -x_offset_max.get(), 0, true);
-			////	else
-			////		x_offset = 0;
-			////}
-			//////cout << i << ": x_offset: " << x_offset << endl;
-			////robots[i]->prev_planar_compensation_x = robots[i]->planar_compensation_x.get();
-			////robots[i]->planar_compensation_x.set(x_offset);
+	if (move_to_vel) {
+		//update_trajectories_2D();
 
-			//robots[i]->update();
+		// Update each robot's velocity scalar so they arrive at the
+		// target at the same time
+		float scale_factor = 1.0;
+		float dist_0 = robots[0]->actual_to_desired_distance;
+		float dist_1 = robots[1]->actual_to_desired_distance;
+		if (abs(dist_0) > abs(dist_1)) {
+			if (dist_0 != 0) scale_factor = abs(dist_1 / dist_0);
+			robots[1]->velocity_scalar = scale_factor;
 		}
 		else {
-			if (robots[i]->is_moving()) {
-				ofLogNotice("CableRobot2D::update()") << "TORQUE OUT OF RANGE: Stopping Robots " << endl;
-				stop();
-			}
+			if (dist_1 != 0) scale_factor = abs(dist_0 / dist_1);
+			robots[0]->velocity_scalar = scale_factor;
 		}
-	}
 
-	if (move_to_vel) {
+		// get the smoothed RPMs
+		float rpm_0 = robots[0]->compute_velocity();
+		float rpm_1 = robots[1]->compute_velocity();
 
-		glm::vec3 offset_0 = glm::vec3(-1 * ee_offset.get(), 0, 0);
-		glm::vec3 offset_1 = glm::vec3(ee_offset.get(), 0, 0);
-		float dist_thresh = 100;
-		//bool add_target = false;
-		////if (ee_path.size() == 0) {
-		//if(trajectory.get_num_targets() == 0){
-		//	add_target = true;
-		//	// set the trajectory starting point
-		//	//trajectories_2D[0]->reset(ee->getGlobalPosition() + offset_0);
-		//	//trajectories_2D[0]->desired_pos.set(ee->getGlobalPosition() + offset_0);
-		//	//trajectories_2D[1]->reset(ee->getGlobalPosition() + offset_1);
-		//	//trajectories_2D[1]->desired_pos.set(ee->getGlobalPosition() + offset_1);
+		// record the raw and filtered rpm for visualization
+		if (debugging) {
+			plot_data[0] = robots[0]->plot_data_vel[0];
+			plot_data[1] = robots[0]->plot_data_vel[1];
+			plot_data[2] = robots[1]->plot_data_vel[0];
+			plot_data[3] = robots[1]->plot_data_vel[1];
+			plot.update(plot_data);
+		}
 
-		//	trajectory.reset(ee->getGlobalPosition());
-		//	trajectory.desired_pos.set(ee->getGlobalPosition());
-		//}
-		//else {
-		//	//auto last_target = ee_path[ee_path.size() - 1][1];
-		//	auto last_target = trajectory.get_last_target();
-		//	float dist_sq = glm::distance2(last_target, ee->getGlobalPosition());
-		//	if (dist_sq > dist_thresh * dist_thresh) {
-		//		add_target = true;				
-		//	}
-		//}
+		//robots[0]->move_velocity_rpm(rpm_0);
+		//robots[1]->move_velocity_rpm(rpm_1);
 
-		//if (add_target) {
-		//	//vector<glm::vec3> ee_pair;
-		//	//ee_pair.push_back(ee->getGlobalPosition() + offset_0);
-		//	//ee_pair.push_back(ee->getGlobalPosition());
-		//	//ee_pair.push_back(ee->getGlobalPosition() + offset_1);
-		//	//ee_path.push_back(ee_pair);
-		//	//trajectories_2D[0]->add_target(ee_pair[0]);
-		//	//trajectories_2D[1]->add_target(ee_pair[2]);
-
-		//	trajectory.add_target(ee->getGlobalPosition());
-		//}
-
-		//bool remove_target = false;
-		//if (trajectory.get_num_targets() < 2){
-		////if (ee_path.size() < 2) {
-		//}
-		//else {
-		//	//auto first_target = ee_path[0][1];
-		//	auto first_target = trajectory.path.getVertices()[0];
-		//	//auto curr_pos = trajectories_2D[0]->get_curr_pos() + offset_1;
-		//	auto curr_pos = trajectory.get_curr_pos();
-		//	dist_thresh *= .40;
-		//	float dist_sq = glm::distance2(first_target, curr_pos);
-		//	if (dist_sq < dist_thresh * dist_thresh) {
-		//		remove_target = true;
-		//	}
-		//}
-		//if (remove_target) {
-		//	//ee_path.erase(ee_path.begin());
-		//	//trajectories_2D[0]->remove_target(0);
-		//	//trajectories_2D[1]->remove_target(0);
-
-		//	trajectory.remove_target(0);
-		//}
-
-		update_trajectories_2D();
+		robots[0]->get_motor_controller()->get_motor()->move_velocity(rpm_0);
+		robots[1]->get_motor_controller()->get_motor()->move_velocity(rpm_1);
 	}
 }
 
@@ -239,12 +169,11 @@ void CableRobot2D::draw()
 		color = ofColor::red;
 	ofSetColor(color, 10);
 	ofDrawRectangle(bounds.getPosition(), bounds.width, bounds.height);
+
+	
+
 	ofPopStyle();
-
-
 	draw_cables_2D();
-	trajectory.draw();
-
 
 	//for (int i = 0; i < robots.size(); i++) {
 	//	robots[i]->draw();
@@ -331,6 +260,8 @@ void CableRobot2D::update_gizmo()
 			move_to.set(glm::vec2(pos.x, -1 * pos.y));
 		}
 	}
+	// update bounds
+	bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
 }
 
 void CableRobot2D::key_pressed(int key)
@@ -350,172 +281,75 @@ void CableRobot2D::key_pressed(int key)
 
 void CableRobot2D::update_trajectories_2D()
 {
-	////for (int i = 0; i < trajectories_2D.size(); i++) {
-
-	////	// get the distance to the target and the distance to the trajectory's last target
-	////	//float dist_sq = glm::distance2(robots[i]->get_tangent().getGlobalPosition(), robots[i]->get_target()->getGlobalPosition());
-
-	////	//// check if we need to add a target to the trajectory
-	////	//bool add_target = false;
-	////	//if (trajectories_2D[i]->get_num_targets() == 0)
-	////	//	add_target = true;
-	////	//else {
-	////	//	// add the target to the trajectory path, but don't add small moves
-	////	//	float dist_sq_to_last_target = glm::distance(robots[i]->get_tangent().getGlobalPosition(), trajectories_2D[i]->get_last_target());
-	////	//	float dist_sq_diff = abs(dist_sq - dist_sq_to_last_target);
-	////	//	float threshold = 2;
-	////	//	if (dist_sq_diff > threshold * threshold)
-	////	//		add_target = true;
-	////	//}
-
-	////	//if (add_target) {
-	////	//	trajectories_2D[i]->add_target(robots[i]->get_target()->getGlobalPosition());
-	////	//}
-
-	////	float dist = robots[i]->get_position_actual();
-	////	glm::vec3 heading = glm::normalize(robots[i]->get_tangent().getGlobalPosition() - trajectories_2D[i]->get_curr_pos()) * dist;
-	////	glm::vec3 curr_pos = (robots[i]->get_tangent().getGlobalPosition() + heading);
-
-	////	ofDrawEllipse(curr_pos, 30, 30);
-
-	////	trajectories_2D[i]->update();
-	////	robots[i]->trajectory.heading.set(trajectories_2D[i]->heading);
-	////	//robots[i]->move_velocity_rpm(trajectories_2D[i]->get_rpm());
-
-	////	// update the 2D cable visualization
-	////	if (robots[i]->trajectory_world_coords.getVertices().size() > 0)
-	////		robots[i]->trajectory_world_coords.getVertices()[0] = trajectories_2D[i]->get_curr_pos();
-	////	
-	////}
-
-	//trajectory.update();
-
-	glm::vec3 offset_0 = glm::vec3(-1 * ee_offset.get(), 0, 0);
-	glm::vec3 offset_1 = glm::vec3(ee_offset.get(), 0, 0);
-	//glm::vec3 desired_left = trajectory.get_curr_pos() + offset_0;
-	//glm::vec3 desired_right = trajectory.get_curr_pos() + offset_1;
-	glm::vec3 desired_left = ee->getGlobalPosition() + offset_0;
-	glm::vec3 desired_right = ee->getGlobalPosition() + offset_1;
-
-	if (robots[0]->trajectory_world_coords.getVertices().size() > 0)
-		robots[0]->trajectory_world_coords.getVertices()[0] = desired_left;
-	if (robots[1]->trajectory_world_coords.getVertices().size() > 0)
-		robots[1]->trajectory_world_coords.getVertices()[0] = desired_right;
 
 	// get distance from actual to desired position
-	float actual_1D = robots[0]->get_position_actual();
-	//float desired_1D = glm::distance(robots[0]->get_tangent().getGlobalPosition(), trajectories_2D[0]->get_curr_pos());
-	float desired_1D = glm::distance(robots[0]->get_tangent().getGlobalPosition(), desired_left);
-	float dist_0 = abs(desired_1D - actual_1D);
-	float heading_0 = (desired_1D > actual_1D) ? -1 : 1;
-	//cout << "DIST 0: " << dist << endl;
-	// compute rpm to move from desired to actual
-	float time_diff = 1 / 60.0;
-	float circumference = 314.0;
-	float rpm_0 = dist_0 / time_diff * 60.0 / circumference;
+	//float actual_1D = robots[0]->get_position_actual();
+	//float desired_1D_0 = glm::distance(robots[0]->get_tangent().getGlobalPosition(), robots[0]->get_target()->getGlobalPosition());
+	//float dist_0 = abs(desired_1D_0 - actual_1D);
+	//float heading_0 = (desired_1D_0 > actual_1D) ? -1 : 1;
 
-	//float dist_threshold = 5;
-	//if (dist < dist_threshold) {
-	//	rpm_0 = ofMap(dist, dist_threshold, vel_limit.get(), 0, true);
-	//}
-
-	actual_1D = robots[1]->get_position_actual();
-	//desired_1D = glm::distance(robots[1]->get_tangent().getGlobalPosition(), trajectories_2D[1]->get_curr_pos());
-	desired_1D = glm::distance(robots[1]->get_tangent().getGlobalPosition(), desired_right);
-	float dist_1 = abs(desired_1D - actual_1D);
-	float heading_1 = (desired_1D > actual_1D) ? -1 : 1;
+	//actual_1D = robots[1]->get_position_actual();
+	//float desired_1D_1 = glm::distance(robots[1]->get_tangent().getGlobalPosition(), robots[1]->get_target()->getGlobalPosition());
+	//float dist_1 = abs(desired_1D_1 - actual_1D);
+	//float heading_1 = (desired_1D_1 > actual_1D) ? -1 : 1;
 	//cout << "DIST 1: " << dist << endl;
-	float rpm_1 = dist_1 / time_diff * 60.0 / circumference;
 
-	float raw_rpm_0 = rpm_0;
-	float raw_rpm_1 = rpm_1;
 
-	//if (dist < dist_threshold) {
-	//	rpm_1 = ofMap(dist, dist_threshold, vel_limit.get(), 0, true);
+	//float rpm_0 = vel_limit.get();
+	//float rpm_1 = vel_limit.get();
+	// scale the rpm base on who is furthest away
+	//cout << "DIST 0: " << dist_0 << " _vs_ 1D: " << robots[0]->actual_to_desired_distance << endl;
+	//cout << "DIST 1: " << dist_1 << " _vs_ 1D: " << robots[1]->actual_to_desired_distance << endl << endl;
+	float scale_factor = 1.0;
+	float dist_0 = robots[0]->actual_to_desired_distance;
+	float dist_1 = robots[1]->actual_to_desired_distance;
+	//float dist_1 = robots[0]->actual_to_desired_distance;
+	if (abs(dist_0) > abs(dist_1)) {
+		if (dist_0 != 0) scale_factor = abs(dist_1 / dist_0);
+		//rpm_1 *= scale_factor;
+		robots[1]->velocity_scalar = scale_factor;
+	}
+	else {
+		if (dist_1 != 0) scale_factor = abs(dist_0 / dist_1);
+		//rpm_0 *= scale_factor;
+		robots[0]->velocity_scalar = scale_factor;
+	}
+
+	float rpm_0 = robots[0]->compute_velocity();
+	float rpm_1 = robots[1]->compute_velocity();
+
+	//// arrive at target
+	//float dist_threshold = zone.get();
+	//if (dist_0 < dist_threshold) {
+	//	rpm_0 = ofMap(dist_0, dist_threshold, 0, rpm_0, 0);
+	//}
+	//if (dist_1 < dist_threshold) {
+	//	rpm_1 = ofMap(dist_1, dist_threshold, 0, rpm_1, 0);
 	//}
 
-	// check if we need to scale the velocities
-	//float rpm_0 = trajectories_2D[0]->get_rpm();
-	//float rpm_1 = trajectories_2D[1]->get_rpm();
-	float velocity_limit = vel_limit.get() - 0.25;
-	if (abs(rpm_0) > velocity_limit || abs(rpm_1) > velocity_limit) {
-		float scale_factor = 1.0;
-		if (abs(rpm_0) > abs(rpm_1)) {
-			if (rpm_0 != 0) scale_factor = velocity_limit / abs(rpm_0) ;
-		}
-		else {
-			if (rpm_1 != 0) scale_factor = velocity_limit / abs(rpm_1);
-		}
-		rpm_0 *= scale_factor;
-		rpm_1 *= scale_factor;
+	//rpm_0 *= heading_0;
+	//rpm_1 *= heading_1;
+
+	//pd_controller_0.update(rpm_0);
+	//pd_controller_1.update(rpm_1);
+
+
+
+	if (debugging) {
+		plot_data[0] = robots[0]->plot_data_vel[0];
+		plot_data[1] = robots[0]->plot_data_vel[1];
+		plot_data[2] = robots[1]->plot_data_vel[0];
+		plot_data[3] = robots[1]->plot_data_vel[1];
+		plot.update(plot_data);
 	}
 
-	// arrive at target
-	float dist_threshold = 50;
-	if (dist_0 < dist_threshold) {
-		rpm_0 = ofMap(dist_0, dist_threshold, 0, rpm_0, 0);
-	}
-	if (dist_1 < dist_threshold) {
-		rpm_1 = ofMap(dist_1, dist_threshold, 0, rpm_1, 0);
-	}
+	//robots[0]->move_velocity_rpm(rpm_0);
+	//robots[1]->move_velocity_rpm(rpm_1);
 
-	rpm_0 *= heading_0;
-	rpm_1 *= heading_1;
-	//cout << "SCALED RPM 0: " << rpm_0 << endl;
-	//cout << "SCALED RPM 1: " << rpm_1 << endl << endl;
+	robots[0]->get_motor_controller()->get_motor()->move_velocity(rpm_0);
+	robots[1]->get_motor_controller()->get_motor()->move_velocity(rpm_1);
 
-	raw_rpm_0 *= heading_0;
-	raw_rpm_1 *= heading_1;
-
-	// PID Experiment
-	float filtered_rpm_0 = 0;
-	float filtered_rpm_1 = 0;
-
-	//filtered_rpm_0 = filter_0.filter(rpm_0, ofGetElapsedTimeMillis());
-	//filtered_rpm_1 = filter_1.filter(rpm_1, ofGetElapsedTimeMillis());
-
-	pd_controller_0.update(rpm_0);
-	pd_controller_1.update(rpm_1);
-
-	
-	plot_data[0] = rpm_0;
-	//plot_data[1] = filtered_rpm_0;
-	plot_data[1] = (pd_controller_0.get_smoothed_val());
-	plot_data[2] = rpm_1;
-	//plot_data[3] = filtered_rpm_1;
-	plot_data[3] = (pd_controller_1.get_smoothed_val());
-	plot.update(plot_data);
-
-	robots[0]->get_motor_controller()->get_motor()->move_velocity(pd_controller_0.get_smoothed_val());
-	robots[1]->get_motor_controller()->get_motor()->move_velocity(pd_controller_1.get_smoothed_val());
-	//robots[0]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_0);
-	//robots[1]->get_motor_controller()->get_motor()->move_velocity(filtered_rpm_1);
-	////robots[0]->move_velocity_rpm(rpm_0);
-	////robots[1]->move_velocity_rpm(rpm_1);
-	/// 
-	rpm_0 = 0;
-	rpm_1 = 0;
 }
-
-void CableRobot2D::draw_trajectories_2D()
-{
-
-	ofPushStyle();
-	//for (int i = 0; i < trajectories_2D.size(); i++) {
-	//	trajectories_2D[i]->draw();
-	//}
-
-	
-
-	/*start = trajectory.get_curr_pos() + offset_1;
-	ofDrawLine(start, end);
-	end = robots[1]->get_tangent().getGlobalPosition();
-	ofDrawLine(start, end);*/
-	
-
-	ofPopStyle();
-}
-
 
 void CableRobot2D::draw_cables_actual(glm::vec3 start_0, glm::vec3 end_0, float dist_0, glm::vec3 start_1, glm::vec3 end_1, float dist_1)
 {
@@ -552,17 +386,17 @@ void CableRobot2D::draw_cables_2D() {
 
 	glm::vec3 start_0 = robots[0]->get_tangent().getGlobalPosition();
 	glm::vec3 start_1 = robots[1]->get_tangent().getGlobalPosition();
-	glm::vec3 end;
-	if (trajectory.get_num_targets() == 0)
-		end = ee->getGlobalPosition();
-	else
-		end = ee->getGlobalPosition(); //trajectory.get_curr_pos();
+	glm::vec3 end = ee->getGlobalPosition(); 
 	glm::vec3 end_0 = end + offset_0;
 	glm::vec3 end_1 = end + offset_1;
 
 	ofDrawLine(start_0, end_0);
 	ofDrawLine(end_0, end_1);
 	ofDrawLine(start_1, end_1);
+
+	ofSetColor(255, 60);
+	ofDrawEllipse(end_0, zone.get() * 2, zone.get() * 2);
+	ofDrawEllipse(end_1, zone.get() * 2, zone.get() * 2);
 
 	draw_cables_actual(start_0, end_0, actual_0, start_1, end_1, actual_1);
 
@@ -603,18 +437,16 @@ void CableRobot2D::setup_gui()
 	params_kinematics.add(x_offset_max.set("X_Offset_Max", 0, 0, 1000));
 
 	params_motion.setName("Motion");
-	//params_motion.add(accel_rate.set("Accel_Rate_(RPM/s)", 1, 0.01, 2.0));
-	//params_motion.add(decel_radius.set("Decel_Radius", 100, 0, 500));
-	params_motion.add(zone.set("Zone", 37.5, 0, 100));
+	params_motion.add(zone.set("Approach_Zone", 50, 0, 300));
+	params_motion.add(kp.set("Proportional_Gains", 1, 0, 500));	// gains for Propotional Component
+	params_motion.add(kd.set("Derivative_Gains", 15, 0, 100));     // gains for Derivitive Component
+	params_motion.add(steering_scalar.set("Steering_Scalar", 1.25, 0, 5));
 
 	params_move.setName("Move");
 	params_move.add(move_to.set("Move_To", glm::vec2(0, 0), glm::vec2(0, 0), glm::vec2(750, 2000)));
 	params_move.add(move_to_pos.set("Move_Pos"));
 	params_move.add(move_to_vel.set("Move_Vel", false));
 	params_move.add(params_motion);
-
-	params_move.add(pd_controller_0.params);
-	params_move.add(pd_controller_1.params);
 
 
 	// bind GUI listeners
@@ -638,6 +470,10 @@ void CableRobot2D::setup_gui()
 	move_to_pos.addListener(this, &CableRobot2D::on_move_to_pos);
 	move_to_vel.addListener(this, &CableRobot2D::on_move_to_vel);
 	zone.addListener(this, &CableRobot2D::on_zone_changed);
+
+	kp.addListener(this, &CableRobot2D::on_gains_changed);
+	kd.addListener(this, &CableRobot2D::on_gains_changed);
+	steering_scalar.addListener(this, &CableRobot2D::on_gains_changed);
 
 	panel.add(params_control);
 	panel.add(params_limits);
@@ -754,9 +590,18 @@ void CableRobot2D::on_x_offset_max_changed(float& val)
  */
 void CableRobot2D::on_zone_changed(float& val)
 {
-	//for (int i = 0; i < robots.size(); i++) {
-	//	robots[i]->set_zone(val);
-	//}
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->set_zone(val);
+	}
+}
+
+void CableRobot2D::on_gains_changed(float& val)
+{
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->velocity_controller.kd.set(kd);
+		robots[i]->velocity_controller.kp.set(kp);
+		robots[i]->velocity_controller.steering_scalar.set(steering_scalar);
+	}
 }
 
 void CableRobot2D::on_move_to_pos()

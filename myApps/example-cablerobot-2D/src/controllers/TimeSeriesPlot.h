@@ -16,7 +16,7 @@ public:
 	float max = 1;
 	int width = 500;
 	int height = 100;
-	int resolution = width;
+	float resolution = width * 0.25;
 
 	vector<ofColor> colors;
 	vector<vector<float>> data;

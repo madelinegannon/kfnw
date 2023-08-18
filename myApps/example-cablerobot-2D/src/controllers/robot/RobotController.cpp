@@ -373,13 +373,13 @@ void RobotController::draw_gui()
 				robots_2D[i]->panel.setPosition(x, y);
 				robots_2D[i]->draw_gui();
 
-				ofPushMatrix();
-				//for (auto& plot : robots_2D[i]->plots_rpm) {
+				// draw any debugging plots
+				if (robots_2D[i]->debugging) {
+					ofPushMatrix();
 					ofTranslate(ofGetWidth() - 550, i * 150 + 60);
-				//	plot.draw();
-				//}
 					robots_2D[i]->plot.draw();
-				ofPopMatrix();
+					ofPopMatrix();
+				}
 			}
 		}			
 	}

@@ -5,11 +5,9 @@
 #include "ofxGizmo.h"
 #include "ofxXmlSettings.h"
 #include "CableRobot.h"
-//#include "Trajectory.h"
-//#include "OneEuroFilter.h"
 
 #include "../TimeSeriesPlot.h"
-#include "../PD_Controller.h"
+//#include "../PD_Controller.h"
 
 
 class CableRobot2D 
@@ -18,10 +16,8 @@ private:
 
 	int id;
 	vector<CableRobot*> robots;
-	Trajectory trajectory;
-	vector<Trajectory*> trajectories_2D;
+
 	void update_trajectories_2D();
-	void draw_trajectories_2D();
 
 	void draw_cables_actual(glm::vec3 start_0, glm::vec3 end_0, float dist_0, glm::vec3 start_1, glm::vec3 end_1, float dist_1);
 	void draw_cables_2D();
@@ -40,10 +36,8 @@ private:
 	void setup_gui();
 	string state_names[5] = { "NOT_HOMED", "HOMING", "ENABLED", "DISABLED", "E_STOP" };
    
-	bool debugging = true;
 public:
 
-	//CableRobot2D(vector<CableRobot> robots);
 	CableRobot2D() {};
 	CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* _origin, glm::vec3 base_top_left, glm::vec3 base_top_right, int id);
 
@@ -54,6 +48,7 @@ public:
 	void shutdown();
 
 	void get_status();
+	bool debugging = true;
 
 	ofxGizmo* get_gizmo() { return &gizmo_ee; }
 	bool override_gizmo = false;
@@ -74,7 +69,8 @@ public:
 	void set_e_stop(bool val);
 	void set_enabled(bool val);
 
-
+	//PD_Controller pd_controller_0;
+	//PD_Controller pd_controller_1;
 	TimeSeriesPlot plot = TimeSeriesPlot(4);
 	vector<float> plot_data = { 0, 0, 0, 0 };
 
@@ -96,6 +92,8 @@ public:
 	void on_move_to_pos();
 	void on_move_to_vel(bool& val);
 	void on_zone_changed(float& val);
+
+	void on_gains_changed(float& val);
 
 	ofxPanel panel;
 	ofParameterGroup params_control;
@@ -120,9 +118,11 @@ public:
 	void on_x_offset_max_changed(float& val);
 
 	ofParameterGroup params_motion;
-	ofParameter<float> accel_rate;
-	ofParameter<float> decel_radius;
-	ofParameter<float> zone;
+	ofParameter<float> zone = 50;
+	ofParameter<float> kp = 1;
+	ofParameter<float> kd = 30;
+	ofParameter<float> steering_scalar = 1.75;
+	
 
 	ofParameterGroup params_move;
 	ofParameter<glm::vec2> move_to;
@@ -135,7 +135,6 @@ public:
 	ofColor mode_color_estopped;
 
 
-	PD_Controller pd_controller_0;
-	PD_Controller pd_controller_1;
+
 
 };

@@ -230,10 +230,17 @@ void Motor::move_velocity(float target_vel)
 {		
 	// check that there is space in the motor's move buffer & then send vel command
 	m_node->Status.RT.Refresh();
-	if (m_node->Status.RT.Value().cpm.MoveBufAvail)
-		m_node->Motion.MoveVelStart(target_vel);
-	else if (target_vel == 0) {
-		ofLogNotice("Motor::move_velocity") << "stopping due to 0 RPM." << endl;
+	if (m_node->Status.RT.Value().cpm.MoveBufAvail) {
+		// filter out smalled changes
+		float epsilon = 0.01;	
+		if (abs(target_vel - get_velocity_actual()) >  epsilon)
+			m_node->Motion.MoveVelStart(target_vel);
+	}
+	else {
+		ofLogNotice(__FUNCTION__) << "Move Buffer Full." << endl;
+	}
+	if (target_vel == 0) {
+		ofLogNotice(__FUNCTION__) << "stopping due to 0 RPM." << endl;
 		stop();
 	}
 }
