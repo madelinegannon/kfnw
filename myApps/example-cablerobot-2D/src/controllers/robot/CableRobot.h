@@ -35,8 +35,8 @@ private:
     float desired_velocity = 0.0;
 
     // Kinematics
-    ofNode* origin;     // external parent node (in world coordinates)
-    ofNode* ee;         // external parent ee node
+    ofNode* origin = new ofNode();     // external parent node (in world coordinates)
+    ofNode* ee = new ofNode();         // external parent ee node
     ofNode base = ofNode();        // center of cable drum
     ofNode tangent = ofNode();     // tangent point on the cable drum
     ofNode target = ofNode();      // desired ee position

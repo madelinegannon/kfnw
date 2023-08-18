@@ -169,11 +169,10 @@ void CableRobot2D::draw()
 		color = ofColor::red;
 	ofSetColor(color, 10);
 	ofDrawRectangle(bounds.getPosition(), bounds.width, bounds.height);
-
 	
+	draw_cables_2D();
 
 	ofPopStyle();
-	draw_cables_2D();
 
 	//for (int i = 0; i < robots.size(); i++) {
 	//	robots[i]->draw();
@@ -251,7 +250,8 @@ void CableRobot2D::update_gizmo()
 	if (override_gizmo) {
 		gizmo_ee.setNode(*ee);
 	}
-	else {
+	else if (gizmo_ee.getTranslation() != ee->getGlobalPosition() ||
+		gizmo_ee.getRotation() != ee->getGlobalOrientation()) {
 		ee->setGlobalPosition(gizmo_ee.getTranslation());
 		ee->setGlobalOrientation(gizmo_ee.getRotation());
 		// update the gui
@@ -260,8 +260,9 @@ void CableRobot2D::update_gizmo()
 			move_to.set(glm::vec2(pos.x, -1 * pos.y));
 		}
 	}
-	// update bounds
-	bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
+	// update bounds if we've moved the origin gizmo
+	if (bounds.getPosition() != robots[0]->get_tangent().getGlobalPosition())
+		bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
 }
 
 void CableRobot2D::key_pressed(int key)
@@ -374,33 +375,32 @@ void CableRobot2D::draw_cables_actual(glm::vec3 start_0, glm::vec3 end_0, float 
 
 
 void CableRobot2D::draw_cables_2D() {
-	ofPushStyle();
+	//ofPushStyle();
 	ofSetColor(120);
 	ofSetLineWidth(1);
-	
-	glm::vec3 offset_0 = glm::vec3(-1 * ee_offset.get(), 0, 0);
-	glm::vec3 offset_1 = glm::vec3(ee_offset.get(), 0, 0);
 
-	float actual_0 = robots[0]->get_position_actual();
-	float actual_1 = robots[1]->get_position_actual();
+	if (robots.size() > 0) {
 
-	glm::vec3 start_0 = robots[0]->get_tangent().getGlobalPosition();
-	glm::vec3 start_1 = robots[1]->get_tangent().getGlobalPosition();
-	glm::vec3 end = ee->getGlobalPosition(); 
-	glm::vec3 end_0 = end + offset_0;
-	glm::vec3 end_1 = end + offset_1;
+		float actual_0 = robots[0]->get_position_actual();
+		float actual_1 = robots[1]->get_position_actual();
 
-	ofDrawLine(start_0, end_0);
-	ofDrawLine(end_0, end_1);
-	ofDrawLine(start_1, end_1);
+		glm::vec3 start_0 = robots[0]->get_tangent_ptr()->getGlobalPosition();
+		glm::vec3 start_1 = robots[1]->get_tangent_ptr()->getGlobalPosition();
+		glm::vec3 end_0 = robots[0]->get_target()->getGlobalPosition();
+		glm::vec3 end_1 = robots[1]->get_target()->getGlobalPosition();
 
-	ofSetColor(255, 60);
-	ofDrawEllipse(end_0, zone.get() * 2, zone.get() * 2);
-	ofDrawEllipse(end_1, zone.get() * 2, zone.get() * 2);
+		ofDrawLine(start_0, end_0);
+		ofDrawLine(end_0, end_1);
+		ofDrawLine(start_1, end_1);
 
-	draw_cables_actual(start_0, end_0, actual_0, start_1, end_1, actual_1);
+		ofSetColor(255, 60);
+		ofDrawEllipse(end_0, zone.get() * 2, zone.get() * 2);
+		ofDrawEllipse(end_1, zone.get() * 2, zone.get() * 2);
 
-	ofPopStyle();
+		draw_cables_actual(start_0, end_0, actual_0, start_1, end_1, actual_1);
+	}	
+
+	//ofPopStyle();
 }
 
 void CableRobot2D::setup_gui()

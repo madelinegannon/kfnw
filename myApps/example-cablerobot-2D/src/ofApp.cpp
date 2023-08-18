@@ -38,7 +38,8 @@ void ofApp::update() {
 		robots->set_targets(motion->get_targets());
 
 	// disable tha camera if we are interacting with a gizmo
-	disable_camera(robots->disable_camera());
+	// @NOTE 8/18/2023: this is doing it by itself for some reason
+	//disable_camera(robots->disable_camera());
 }
 
 void ofApp::draw()
@@ -92,7 +93,6 @@ void ofApp::keyPressed(int key) {
 	motion->keyPressed(key);
 	robots->key_pressed(key);
 
-
 	switch (key)
 	{
 	case 'f':
@@ -143,7 +143,8 @@ void ofApp::mouseExited(int x, int y) {
 
 //--------------------------------------------------------------
 void ofApp::windowResized(int w, int h) {
-	robots->windowResized(w, h);
+	if (robots)
+		robots->windowResized(w, h);
 }
 
 //--------------------------------------------------------------
