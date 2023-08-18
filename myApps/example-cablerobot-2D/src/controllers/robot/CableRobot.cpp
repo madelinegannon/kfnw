@@ -552,7 +552,8 @@ void CableRobot::update_gizmo()
 	if (override_gizmo) {
 		gizmo_ee.setNode(*ee);
 	}
-	else {
+	else if (gizmo_ee.getTranslation() != ee->getGlobalPosition() ||
+		gizmo_ee.getRotation() != ee->getGlobalOrientation()) {
 		ee->setGlobalPosition(gizmo_ee.getTranslation());
 		ee->setGlobalOrientation(gizmo_ee.getRotation());
 		
@@ -561,8 +562,7 @@ void CableRobot::update_gizmo()
 			update_move_to();
 		}
 	}	
-
-
+	// update bounds here too?
 }
 
 void CableRobot::update_move_to() {
@@ -1048,7 +1048,7 @@ float CableRobot::compute_velocity()
 	// @NOTE: velocity_scalar is updated by 2D / 3D configurations
 	float rpm = vel_limit.get() * velocity_scalar;
 
-	// reset the velocity scalar every time
+	// reset the velocity scalar every time to 1.0
 	velocity_scalar = 1.0;
 	
 	// Map to 0 when arriving at the target

@@ -35,6 +35,9 @@ public:
 	ofNode origin;
 	ofEasyCam cam;
 
+	
+	ofxOscReceiver osc_receiver;
+	void check_for_messages();
 
 	void setup_camera();
 	void key_pressed_camera(int key);
@@ -53,4 +56,15 @@ public:
 
 	ofColor background_inner = ofColor(238);
 	ofColor background_outer = ofColor(118);
+
+	void setup_gui();
+
+	ofxPanel panel;
+	ofParameterGroup params;
+	ofParameter<int> osc_port_listening = 55555;
+	ofParameter<void> osc_connect;
+	ofParameter<string> osc_status;
+
+	void on_osc_connect();
+
 };

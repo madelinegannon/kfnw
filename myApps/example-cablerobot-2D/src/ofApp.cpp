@@ -6,6 +6,8 @@ void ofApp::setup() {
 	ofLogToConsole();
 	ofSetCircleResolution(60);
 
+	setup_gui();
+
 	setup_camera();
 
 	int count = 2;
@@ -27,10 +29,17 @@ void ofApp::setup() {
 
 	on_set_camera_view(camera_top, camera_target, 2250);
 	ofSetFrameRate(60);
+
+	// Nest the robot panel under the OSC panel
+	robots->panel.setPosition(panel.getPosition().x, panel.getPosition().y + panel.getHeight() + 5);
 }
 
 //--------------------------------------------------------------
 void ofApp::update() {
+
+	if (osc_status.get() == "CONNECTED") {
+		check_for_messages();
+	}
 
 	motion->update();
 
@@ -78,6 +87,7 @@ void ofApp::draw()
 	cam.end();
 
 	// draw 2D
+	panel.draw();
 	robots->draw_gui();
 	motion->draw_gui();
 
@@ -155,6 +165,115 @@ void ofApp::gotMessage(ofMessage msg) {
 //--------------------------------------------------------------
 void ofApp::dragEvent(ofDragInfo dragInfo) {
 
+}
+
+void ofApp::setup_gui()
+{
+	panel.setup();
+	panel.setName("CableBot_Server");
+	panel.setPosition(10, 10);
+	panel.setWidthElements(250);
+
+	params.setName("OSC_Receiver");
+	params.add(osc_port_listening.set("Listening_Port", 55555));
+	params.add(osc_connect.set("CONNECT"));
+	params.add(osc_status.set("Status", "DISCONNECTED"));
+
+	panel.add(params);
+
+	osc_connect.addListener(this, &ofApp::on_osc_connect);
+}
+
+void ofApp::on_osc_connect()
+{
+	if (osc_status.get() == "DISCONNECTED") {
+		ofxOscReceiverSettings settings;
+		settings.port = osc_port_listening.get();
+		osc_receiver.setup(settings);
+		osc_status.set("CONNECTED");
+	}
+	else {
+		osc_receiver.stop();
+		osc_status.set("DISCONNECTED");
+	}	
+}
+
+void ofApp::check_for_messages()
+{
+	while (osc_receiver.hasWaitingMessages()) {
+		// get the next message
+		ofxOscMessage m;
+		osc_receiver.getNextMessage(m);
+
+		float bounds_x_min = -300;
+		float bounds_x_max = 300;
+		float bounds_y_min = -650;
+		float bounds_y_max = -1250;
+
+		// We received a normalized XY target in range {[0,1], [0,1]}
+		if (m.getAddress() == "/tgt_norm") {
+			int i = m.getArgAsInt(0);
+			float x = m.getArgAsFloat(1);
+			float y = m.getArgAsFloat(2);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			
+			//cout << "x: " << x << ", y: " << y << endl;
+
+			robots->set_target(0, x, y);
+		}
+		else if (m.getAddress() == "/values/label18/gamepad/stick_left_x") {
+			float x = stof(m.getArgAsString(0));
+			x = ofMap(x, -1, 1, bounds_x_min, bounds_x_max);
+			robots->set_target_x(0, x);
+		}
+		else if (m.getAddress() == "/values/label20/gamepad/stick_left_y") {
+			float y = stof(m.getArgAsString(0));
+			y = ofMap(y, -1, 1, bounds_y_min, bounds_y_max);
+			robots->set_target_y(0, y);
+		}
+		// We received an absolute XY target in range {[0,0], [bounds.min,bounds.max]}
+		else if (m.getAddress() == "/tgt_abs") {
+			//int i = m.getArgAsInt(0);
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			// just check the first set of robots
+			//if (i == 0) {
+			robots->set_target(0, x, y);
+			//}
+		}
+		else {
+			// unrecognized message: display on the bottom of the screen
+			string msgString;
+			msgString = m.getAddress();
+			msgString += ":";
+			for (size_t i = 0; i < m.getNumArgs(); i++) {
+
+				// get the argument type
+				msgString += " ";
+				msgString += m.getArgTypeName(i);
+				msgString += ":";
+
+				// display the argument - make sure we get the right type
+				if (m.getArgType(i) == OFXOSC_TYPE_INT32) {
+					msgString += ofToString(m.getArgAsInt32(i));
+				}
+				else if (m.getArgType(i) == OFXOSC_TYPE_FLOAT) {
+					msgString += ofToString(m.getArgAsFloat(i));
+				}
+				else if (m.getArgType(i) == OFXOSC_TYPE_STRING) {
+					msgString += m.getArgAsString(i);
+				}
+				else {
+					msgString += "unhandled argument type " + m.getArgTypeName(i);
+				}
+			}
+			cout << msgString << endl;
+		}
+
+	}
 }
 
 void ofApp::setup_camera()

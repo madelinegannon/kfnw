@@ -237,7 +237,7 @@ void Motor::move_velocity(float target_vel)
 			m_node->Motion.MoveVelStart(target_vel);
 	}
 	else {
-		ofLogNotice(__FUNCTION__) << "Move Buffer Full." << endl;
+		ofLogNotice(__FUNCTION__) << "Motor " << ofToString(int(m_node->Info.Ex.Addr())) << ": Move Buffer Full. TimeStamp: " << ofGetElapsedTimeMillis() << endl;
 	}
 	if (target_vel == 0) {
 		ofLogNotice(__FUNCTION__) << "stopping due to 0 RPM." << endl;

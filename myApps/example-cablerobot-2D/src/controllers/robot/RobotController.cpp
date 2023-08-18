@@ -236,7 +236,6 @@ void RobotController::windowResized(int w, int h)
 
 void RobotController::threadedFunction()
 {
-	
 	while (isThreadRunning()) {
 		if (!is_initialized) {
 			
@@ -510,6 +509,36 @@ void RobotController::set_targets(vector<glm::vec3*> targets)
 			node.setPosition(*targets[i]);
 			robots_2D[i]->get_gizmo()->setNode(node);
 		}
+	}
+}
+
+void RobotController::set_target(int i, float x, float y)
+{
+	if (system_config == Configuration::TWO_D) {
+		if (i < robots_2D.size()) {
+			auto pos = robots_2D[i]->get_gizmo()->getTranslation();
+			pos.x = x;
+			pos.y = y;
+			ofNode node;
+			node.setGlobalPosition(pos);
+			robots_2D[i]->get_gizmo()->setNode(node);
+		}
+	}
+}
+
+void RobotController::set_target_x(int i, float x)
+{
+	if (i < robots_2D.size()) {
+		auto pos = robots_2D[i]->get_gizmo()->getTranslation();
+		set_target(i, x, pos.y);
+	}
+}
+
+void RobotController::set_target_y(int i, float y)
+{
+	if (i < robots_2D.size()) {
+		auto pos = robots_2D[i]->get_gizmo()->getTranslation();
+		set_target(i, pos.x, y);
 	}
 }
 

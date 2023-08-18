@@ -282,60 +282,24 @@ void CableRobot2D::key_pressed(int key)
 
 void CableRobot2D::update_trajectories_2D()
 {
-
-	// get distance from actual to desired position
-	//float actual_1D = robots[0]->get_position_actual();
-	//float desired_1D_0 = glm::distance(robots[0]->get_tangent().getGlobalPosition(), robots[0]->get_target()->getGlobalPosition());
-	//float dist_0 = abs(desired_1D_0 - actual_1D);
-	//float heading_0 = (desired_1D_0 > actual_1D) ? -1 : 1;
-
-	//actual_1D = robots[1]->get_position_actual();
-	//float desired_1D_1 = glm::distance(robots[1]->get_tangent().getGlobalPosition(), robots[1]->get_target()->getGlobalPosition());
-	//float dist_1 = abs(desired_1D_1 - actual_1D);
-	//float heading_1 = (desired_1D_1 > actual_1D) ? -1 : 1;
-	//cout << "DIST 1: " << dist << endl;
-
-
-	//float rpm_0 = vel_limit.get();
-	//float rpm_1 = vel_limit.get();
-	// scale the rpm base on who is furthest away
-	//cout << "DIST 0: " << dist_0 << " _vs_ 1D: " << robots[0]->actual_to_desired_distance << endl;
-	//cout << "DIST 1: " << dist_1 << " _vs_ 1D: " << robots[1]->actual_to_desired_distance << endl << endl;
 	float scale_factor = 1.0;
 	float dist_0 = robots[0]->actual_to_desired_distance;
 	float dist_1 = robots[1]->actual_to_desired_distance;
-	//float dist_1 = robots[0]->actual_to_desired_distance;
+
 	if (abs(dist_0) > abs(dist_1)) {
 		if (dist_0 != 0) scale_factor = abs(dist_1 / dist_0);
-		//rpm_1 *= scale_factor;
 		robots[1]->velocity_scalar = scale_factor;
 	}
 	else {
 		if (dist_1 != 0) scale_factor = abs(dist_0 / dist_1);
-		//rpm_0 *= scale_factor;
 		robots[0]->velocity_scalar = scale_factor;
 	}
 
+	// get the smoothed velocities
 	float rpm_0 = robots[0]->compute_velocity();
 	float rpm_1 = robots[1]->compute_velocity();
 
-	//// arrive at target
-	//float dist_threshold = zone.get();
-	//if (dist_0 < dist_threshold) {
-	//	rpm_0 = ofMap(dist_0, dist_threshold, 0, rpm_0, 0);
-	//}
-	//if (dist_1 < dist_threshold) {
-	//	rpm_1 = ofMap(dist_1, dist_threshold, 0, rpm_1, 0);
-	//}
-
-	//rpm_0 *= heading_0;
-	//rpm_1 *= heading_1;
-
-	//pd_controller_0.update(rpm_0);
-	//pd_controller_1.update(rpm_1);
-
-
-
+	// record the raw and filtered rpm for visualization
 	if (debugging) {
 		plot_data[0] = robots[0]->plot_data_vel[0];
 		plot_data[1] = robots[0]->plot_data_vel[1];
@@ -344,12 +308,8 @@ void CableRobot2D::update_trajectories_2D()
 		plot.update(plot_data);
 	}
 
-	//robots[0]->move_velocity_rpm(rpm_0);
-	//robots[1]->move_velocity_rpm(rpm_1);
-
-	robots[0]->get_motor_controller()->get_motor()->move_velocity(rpm_0);
-	robots[1]->get_motor_controller()->get_motor()->move_velocity(rpm_1);
-
+	robots[0]->move_velocity_rpm(rpm_0);
+	robots[1]->move_velocity_rpm(rpm_1);
 }
 
 void CableRobot2D::draw_cables_actual(glm::vec3 start_0, glm::vec3 end_0, float dist_0, glm::vec3 start_1, glm::vec3 end_1, float dist_1)
