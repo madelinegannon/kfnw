@@ -11,7 +11,7 @@ public:
 
 	ofParameterGroup params;
 	ofParameter<float> kp, kd, steering_scalar;
-	float time_diff = 1 / 60.;
+	float time_diff = 1 / 20.;// 60.;
 
 	void update(float setpoint = 0);
 	void reset(float setpoint = 0);
@@ -24,5 +24,7 @@ private:
 	float setpoint = 0;
 	float smoothed_val = 0;
 	float pd_val = 0;
+
+	float last_time = 0;
 
 };
