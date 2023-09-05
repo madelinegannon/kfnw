@@ -10,21 +10,24 @@ void ofApp::setup() {
 
 	setup_camera();
 
-	int count = 2;
+	// set the postions of each motor
 	int offset = 2500; // mm
+	int offset_z = -140; //mm
+	int num_cable_bots = 4;
+	int num_motors = num_cable_bots * 2;
+	int count = num_motors / num_cable_bots;
 	vector<glm::vec3> positions;
-	for (int i = 0; i < count; i++) {
-		positions.push_back(glm::vec3(offset * i, 0, 0));
-	}
-	for (int i = 0; i < count; i++) {
-		positions.push_back(glm::vec3(offset * i, 0, -75));
+	for (int j = 0; j < num_cable_bots; j++) {
+		for (int i = 0; i < count; i++) {
+			positions.push_back(glm::vec3(offset * i, 0, offset_z * j));
+		}
 	}
 
 	// set the world coordinate system of the robots (flip to match screen coord axes)
 	origin.rotateAroundDeg(180, glm::vec3(1, 0, 0), glm::vec3(0, 0, 0));
 	origin.setGlobalPosition( -1 * (positions[0].x + positions[1].x) / 2.0, 0, 0);
 	robots = new RobotController(positions, &origin);
-	motion = new MotionController(positions, &origin);
+	motion = new MotionController(positions, &origin, offset_z);
 
 
 	on_set_camera_view(camera_top, camera_target, 2250);

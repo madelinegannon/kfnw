@@ -8,7 +8,7 @@ MotionController::MotionController()
     setup_gui();
    
     glm::vec3 pos = centroid.getGlobalPosition();
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < bases.size()/2; i++) {
         ofNode n;
         n.setGlobalPosition(pos.x, pos.y, pos.z + (i * offset_z));
         //paths.push_back(create_line(n, 750));
@@ -30,12 +30,12 @@ MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, flo
     float width = glm::distance(bases[0], bases[1]);
     auto pos = _origin->getGlobalPosition();
     pos.x += width / 2;
-    pos.y -= 1000;
+    pos.y -= 1500;
     centroid.setGlobalPosition(pos);
 
     setup_gui();
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < bases.size()/2; i++) {
         ofNode n;
         n.setGlobalPosition(pos.x, pos.y, pos.z + (i * offset_z));
         //paths.push_back(create_line(n, 750));
@@ -173,7 +173,7 @@ void MotionController::setup_gui()
 {
 	params.setName("Path_Params");
     params.add(pos.set("Position", centroid.getGlobalPosition(), glm::vec3(-2000, -2000, -2000), glm::vec3(2000, 0, 2000)));
-    params.add(radius.set("Radius", 300, 0, 500));
+    params.add(radius.set("Radius", 350, 0, 500));
     params.add(resolution.set("Resolution", 30, 3, 60));
     params.add(offset_theta.set("Offset_Theta", 0, -180, 180));
     params.add(speed.set("Speed", .001, 0, .1));
