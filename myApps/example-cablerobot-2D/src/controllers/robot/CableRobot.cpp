@@ -457,8 +457,8 @@ void CableRobot::update()
 	}
 
 	// update the actual positions
-	float dist_actual = get_position_actual();
-	actual.setPosition(0, -1 * dist_actual, 0);
+	position_actual = get_position_actual();
+	actual.setPosition(0, -1 * position_actual, 0);
 
 	// update the gui
 	//info_velocity_actual.set(ofToString(motor_controller->get_motor()->get()->Motion.VelMeasured.Value()));
@@ -1039,11 +1039,11 @@ void CableRobot::move_velocity_rpm(float rpm)
 float CableRobot::compute_velocity()
 {
 	// Get distance from actual to desired position
-	float pos_actual = get_position_actual();
+	position_actual = get_position_actual();
 	float pos_desired = glm::distance(tangent.getGlobalPosition(), target.getGlobalPosition());
-	float dist = abs(pos_desired - pos_actual);
+	float dist = abs(pos_desired - position_actual);
 	actual_to_desired_distance = dist;
-	float heading = (pos_desired > pos_actual) ? -1 : 1;
+	float heading = (pos_desired > position_actual) ? -1 : 1;
 
 	// Scale velocity to sync with external motors (scalar = 1.0 for 1D configurations)
 	// @NOTE: velocity_scalar is updated by 2D / 3D configurations

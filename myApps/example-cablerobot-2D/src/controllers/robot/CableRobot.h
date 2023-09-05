@@ -110,6 +110,7 @@ public:
 
     bool is_setup = false;
 
+    float position_actual = 0; // in mm (+) val only
     float get_position_actual();
     vector<float> get_motion_parameters();
     void set_motion_parameters(float velocity_max, float accel_max, float position_min, float position_max);

@@ -386,8 +386,10 @@ void CableRobot2D::draw_cables_2D() {
 
 	if (robots.size() > 0) {
 
-		float actual_0 = robots[0]->get_position_actual();
-		float actual_1 = robots[1]->get_position_actual();
+		float actual_0 = robots[0]->position_actual;
+		float actual_1 = robots[1]->position_actual;
+		//float actual_0 = robots[0]->get_position_actual();
+		//float actual_1 = robots[1]->get_position_actual();
 
 		glm::vec3 start_0 = robots[0]->get_tangent_ptr()->getGlobalPosition();
 		glm::vec3 start_1 = robots[1]->get_tangent_ptr()->getGlobalPosition();
