@@ -65,6 +65,7 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	plot.colors[2] = ofColor(ofColor::blue);
 	plot.colors[3] = ofColor::cyan;
 
+	startThread();
 }
 
 void CableRobot2D::update()
@@ -72,55 +73,96 @@ void CableRobot2D::update()
 	update_gizmo();
 	
 
-	//for (int i = 0; i < robots.size(); i++) {
-	//	// monitor the torque and stop all motors if unexpected value
-	//	if (robots[i]->is_torque_in_limits()) {
+	////for (int i = 0; i < robots.size(); i++) {
+	////	// monitor the torque and stop all motors if unexpected value
+	////	if (robots[i]->is_torque_in_limits()) {
 
-	//		//robots[i]->update();
+	////		//robots[i]->update();
+	////	}
+	////	else {
+	////		if (robots[i]->is_moving()) {
+	////			ofLogNotice("CableRobot2D::update()") << "TORQUE OUT OF RANGE: Stopping Robots " << endl;
+	////			stop();
+	////		}
+	////	}
+	////}
+
+	//if (move_to_vel) {
+	//	//update_trajectories_2D();
+
+	//	// Update each robot's velocity scalar so they arrive at the
+	//	// target at the same time
+	//	float scale_factor = 1.0;
+	//	float dist_0 = robots[0]->actual_to_desired_distance;
+	//	float dist_1 = robots[1]->actual_to_desired_distance;
+	//	if (abs(dist_0) > abs(dist_1)) {
+	//		if (dist_0 != 0) scale_factor = abs(dist_1 / dist_0);
+	//		robots[1]->velocity_scalar = scale_factor;
 	//	}
 	//	else {
-	//		if (robots[i]->is_moving()) {
-	//			ofLogNotice("CableRobot2D::update()") << "TORQUE OUT OF RANGE: Stopping Robots " << endl;
-	//			stop();
-	//		}
+	//		if (dist_1 != 0) scale_factor = abs(dist_0 / dist_1);
+	//		robots[0]->velocity_scalar = scale_factor;
 	//	}
+
+	//	// get the smoothed RPMs
+	//	float rpm_0 = robots[0]->compute_velocity();
+	//	float rpm_1 = robots[1]->compute_velocity();
+
+	//	// record the raw and filtered rpm for visualization
+	//	if (debugging) {
+	//		plot_data[0] = robots[0]->plot_data_vel[0];
+	//		plot_data[1] = robots[0]->plot_data_vel[1];
+	//		plot_data[2] = robots[1]->plot_data_vel[0];
+	//		plot_data[3] = robots[1]->plot_data_vel[1];
+	//		plot.update(plot_data);
+	//	}
+
+	//	//robots[0]->move_velocity_rpm(rpm_0);
+	//	//robots[1]->move_velocity_rpm(rpm_1);
+
+	//	robots[0]->get_motor_controller()->get_motor()->move_velocity(rpm_0);
+	//	robots[1]->get_motor_controller()->get_motor()->move_velocity(rpm_1);
 	//}
+}
 
-	if (move_to_vel) {
-		//update_trajectories_2D();
+void CableRobot2D::threadedFunction() {
+	while (isThreadRunning()) {
+		if (move_to_vel) {
+			//update_trajectories_2D();
 
-		// Update each robot's velocity scalar so they arrive at the
-		// target at the same time
-		float scale_factor = 1.0;
-		float dist_0 = robots[0]->actual_to_desired_distance;
-		float dist_1 = robots[1]->actual_to_desired_distance;
-		if (abs(dist_0) > abs(dist_1)) {
-			if (dist_0 != 0) scale_factor = abs(dist_1 / dist_0);
-			robots[1]->velocity_scalar = scale_factor;
+			// Update each robot's velocity scalar so they arrive at the
+			// target at the same time
+			float scale_factor = 1.0;
+			float dist_0 = robots[0]->actual_to_desired_distance;
+			float dist_1 = robots[1]->actual_to_desired_distance;
+			if (abs(dist_0) > abs(dist_1)) {
+				if (dist_0 != 0) scale_factor = abs(dist_1 / dist_0);
+				robots[1]->velocity_scalar = scale_factor;
+			}
+			else {
+				if (dist_1 != 0) scale_factor = abs(dist_0 / dist_1);
+				robots[0]->velocity_scalar = scale_factor;
+			}
+
+			// get the smoothed RPMs
+			float rpm_0 = robots[0]->compute_velocity();
+			float rpm_1 = robots[1]->compute_velocity();
+
+			// record the raw and filtered rpm for visualization
+			if (debugging) {
+				plot_data[0] = robots[0]->plot_data_vel[0];
+				plot_data[1] = robots[0]->plot_data_vel[1];
+				plot_data[2] = robots[1]->plot_data_vel[0];
+				plot_data[3] = robots[1]->plot_data_vel[1];
+				plot.update(plot_data);
+			}
+
+			//robots[0]->move_velocity_rpm(rpm_0);
+			//robots[1]->move_velocity_rpm(rpm_1);
+
+			robots[0]->get_motor_controller()->get_motor()->move_velocity(rpm_0);
+			robots[1]->get_motor_controller()->get_motor()->move_velocity(rpm_1);
 		}
-		else {
-			if (dist_1 != 0) scale_factor = abs(dist_0 / dist_1);
-			robots[0]->velocity_scalar = scale_factor;
-		}
-
-		// get the smoothed RPMs
-		float rpm_0 = robots[0]->compute_velocity();
-		float rpm_1 = robots[1]->compute_velocity();
-
-		// record the raw and filtered rpm for visualization
-		if (debugging) {
-			plot_data[0] = robots[0]->plot_data_vel[0];
-			plot_data[1] = robots[0]->plot_data_vel[1];
-			plot_data[2] = robots[1]->plot_data_vel[0];
-			plot_data[3] = robots[1]->plot_data_vel[1];
-			plot.update(plot_data);
-		}
-
-		//robots[0]->move_velocity_rpm(rpm_0);
-		//robots[1]->move_velocity_rpm(rpm_1);
-
-		robots[0]->get_motor_controller()->get_motor()->move_velocity(rpm_0);
-		robots[1]->get_motor_controller()->get_motor()->move_velocity(rpm_1);
 	}
 }
 
@@ -267,16 +309,19 @@ void CableRobot2D::update_gizmo()
 
 void CableRobot2D::key_pressed(int key)
 {
+	for (int i = 0; i < robots.size(); i++) {
+		robots[i]->key_pressed(key);
+	}
 	switch (key)
 	{
+	case ' ':
+		move_to_vel.set(false);
+		break;
 	case '?':
 		debugging = !debugging;
 		break;
 	default:
 		break;
-	}
-	for (int i = 0; i < robots.size(); i++) {
-		robots[i]->key_pressed(key);
 	}
 }
 
@@ -397,7 +442,7 @@ void CableRobot2D::setup_gui()
 	params_kinematics.add(x_offset_max.set("X_Offset_Max", 0, 0, 1000));
 
 	params_motion.setName("Motion");
-	params_motion.add(zone.set("Approach_Zone", 50, 0, 300));
+	params_motion.add(zone.set("Approach_Zone", 100, 0, 300));
 	params_motion.add(kp.set("Proportional_Gains", 1, 0, 500));	// gains for Propotional Component
 	params_motion.add(kd.set("Derivative_Gains", 15, 0, 100));     // gains for Derivitive Component
 	params_motion.add(steering_scalar.set("Steering_Scalar", 1.25, 0, 5));
@@ -561,6 +606,7 @@ void CableRobot2D::on_gains_changed(float& val)
 		robots[i]->velocity_controller.kd.set(kd);
 		robots[i]->velocity_controller.kp.set(kp);
 		robots[i]->velocity_controller.steering_scalar.set(steering_scalar);
+		robots[i]->velocity_controller.reset();
 	}
 }
 

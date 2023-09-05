@@ -7,10 +7,10 @@
 #include "CableRobot.h"
 
 #include "../TimeSeriesPlot.h"
-//#include "../PD_Controller.h"
 
 
-class CableRobot2D 
+class CableRobot2D :
+	public ofThread
 {
 private:
 
@@ -46,6 +46,8 @@ public:
 	void update_gui(ofxPanel* _panel);
 	void draw_gui();
 	void shutdown();
+
+	void threadedFunction();
 
 	void get_status();
 	bool debugging = true;
