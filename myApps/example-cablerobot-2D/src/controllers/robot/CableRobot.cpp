@@ -344,6 +344,7 @@ bool CableRobot::save_config_to_file(string filename)
 
 	config.addValue("timestamp", ofGetTimestampString());
 	config.addValue("serial_number", serial_number);
+	config.addValue("motor_id", motor_controller->get_motor_id());
 	config.addValue("auto_home", auto_home);
 
 	// kinematics
@@ -1062,16 +1063,25 @@ float CableRobot::compute_velocity()
 
 	// Update the velocity controller
 	velocity_controller.update(rpm);
+	
+	float smoothed_val = velocity_controller.get_smoothed_val();
+	if (smoothed_val < -1 * velocity_max) {
+		smoothed_val = -1 * velocity_max;
+	}
+	else if (smoothed_val > velocity_max) {
+		smoothed_val = velocity_max;
+	}
 
 	// record the raw and filtered rpm for visualization
 	if (debugging) {
 		plot_data_vel[0] = rpm;
-		plot_data_vel[1] = velocity_controller.get_smoothed_val();
+		plot_data_vel[1] = smoothed_val;// velocity_controller.get_smoothed_val();
 		plot_vel.update(plot_data_vel);
 	}
 
+
 	// return the smoothed velocity
-	return velocity_controller.get_smoothed_val();
+	return smoothed_val;// velocity_controller.get_smoothed_val();
 }
 
 void CableRobot::stop()
@@ -1081,6 +1091,7 @@ void CableRobot::stop()
 
 	// upadate the gui
 	info_velocity_target.set("0");
+	velocity_controller.reset();
 }
 
 void CableRobot::set_e_stop(bool val)

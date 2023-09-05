@@ -167,7 +167,6 @@ bool RobotController::initialize()
 						}
 					}
 				}
-
 			}
 			// update the gui
 			num_robots.set(ofToString(robots.size()));
