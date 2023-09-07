@@ -19,4 +19,10 @@ Open `clearpath_helloworld\clearpath_helloworld.sln` to load a vanilla C++ proje
 Open `myApps\example-helloworld\example-helloworl.sln` to load an openFrameworks project template using the ClearPath `sFoundation` library.
 > Only running in Release x64 at the moment.
 
+## Blender OSC Setup
+1. Download the (Blender Launcher)[https://dotbow.github.io/Blender-Launcher/installation/] and install 3.6.1
+2. Launch 3.6.1, go to _Edit > Preferences > Add-ons > Install_, and navigate to the `blender_projects/AddRoutes_Latest.zip` file.
+3. Click the `Enable` checkbox to enable the addon.
+4. The addon is now in the `n` panel.
+
 ### Useful Links
