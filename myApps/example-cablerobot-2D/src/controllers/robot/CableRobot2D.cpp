@@ -48,7 +48,7 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	ee_offset.set(40);
 	vel_limit.set(35);
 	accel_limit.set(120);
-	bounds_max.set(3000);
+	bounds_max.set(4000);
 
 	this->ee->setGlobalPosition(bounds.getCenter().x, bounds.getCenter().y, top_left->get_base().getGlobalPosition().z);
 	gizmo_ee.setNode(*ee);

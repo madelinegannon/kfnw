@@ -7,6 +7,8 @@ void ofApp::setup() {
 	ofSetCircleResolution(60);
 
 	setup_gui();
+	setup_comms();
+	setup_sensors();
 
 	setup_camera();
 
@@ -25,7 +27,7 @@ void ofApp::setup() {
 
 	// set the world coordinate system of the robots (flip to match screen coord axes)
 	origin.rotateAroundDeg(180, glm::vec3(1, 0, 0), glm::vec3(0, 0, 0));
-	origin.setGlobalPosition( -1 * (positions[0].x + positions[1].x) / 2.0, 0, 0);
+	origin.setGlobalPosition(-1 * (positions[0].x + positions[1].x) / 2.0, 0, 0);
 	robots = new RobotController(positions, &origin);
 	motion = new MotionController(positions, &origin, offset_z);
 
@@ -39,6 +41,11 @@ void ofApp::setup() {
 
 //--------------------------------------------------------------
 void ofApp::update() {
+	update_gizmos();
+	update_sensor_path();
+	//check_for_messages(&osc_receiver_skeleton);
+
+	skeleton = sensor_comms.get_data();
 
 	if (osc_status.get() == "CONNECTED") {
 		check_for_messages();
@@ -58,6 +65,20 @@ void ofApp::draw()
 {
 	ofBackgroundGradient(background_inner, background_outer);
 	cam.begin();
+
+	// draw the floor plane
+	ofSetColor(200, 180);
+	ofPushMatrix();
+	ofRotateX(90);
+	ofTranslate(0, 2800 / 2 + -140 * 3, 3350);
+	ofDrawPlane(4000, 2800);
+	ofPopMatrix();
+
+	// draw the zones
+	draw_zones();
+	draw_sensor_path();
+
+	gizmo_sensor.draw(cam);
 
 	// draw the axis and planes
 	ofPushStyle();
@@ -86,7 +107,8 @@ void ofApp::draw()
 	for (auto gizmo : robots->get_gizmos())
 		gizmo->draw(cam);
 
-	
+	draw_skeleton(skeleton);
+
 	cam.end();
 
 	// draw 2D
@@ -116,7 +138,33 @@ void ofApp::keyPressed(int key) {
 	default:
 		break;
 	}
+	key_pressed_gizmo(key);
+}
 
+
+void ofApp::key_pressed_gizmo(int key)
+{
+	switch (key)
+	{
+	case 'e':
+	case 'E':
+		gizmo_sensor.setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_ROTATE);
+		break;
+	case 'w':
+	case 'W':
+
+		gizmo_sensor.setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_MOVE);
+
+		break;
+	case 'r':
+	case 'R':
+
+		gizmo_sensor.setType(ofxGizmo::ofxGizmoType::OFX_GIZMO_SCALE);
+		break;
+
+	default:
+		break;
+	}
 }
 
 //--------------------------------------------------------------
@@ -182,9 +230,41 @@ void ofApp::setup_gui()
 	params.add(osc_connect.set("CONNECT"));
 	params.add(osc_status.set("Status", "DISCONNECTED"));
 
+	params_zones.setName("Zone_Params");
+	params_zones.add(zone_pos.set("Position", glm::vec3(0, 650, 3350), glm::vec3(-3000, -3000, 0), glm::vec3(3000, 3000, 3350)));
+	params_zones.add(zone_width.set("Width", 3000, 0, 4000));
+	params_zones.add(zone_height.set("Height", 1000, 0, 3000));
+
+
+	zone.setFromCenter(zone_pos.get(), zone_width.get(), zone_height.get());
+
+
+	zone_pos.addListener(this, &ofApp::on_zone_pos_changed);
+	zone_width.addListener(this, &ofApp::on_zone_width_changed);
+	zone_height.addListener(this, &ofApp::on_zone_height_changed);
+
 	panel.add(params);
+	panel.add(params_zones);
 
 	osc_connect.addListener(this, &ofApp::on_osc_connect);
+}
+
+void ofApp::on_zone_pos_changed(glm::vec3& val)
+{
+	if (val.z != zone.getPosition().z) {
+
+	}
+	zone.setFromCenter(val, zone_width.get(), zone_height.get());
+}
+
+void ofApp::on_zone_width_changed(float& val)
+{
+	zone.setFromCenter(zone_pos.get(), val, zone_height.get());
+}
+
+void ofApp::on_zone_height_changed(float& val)
+{
+	zone.setFromCenter(zone_pos.get(), zone_width.get(), val);
 }
 
 void ofApp::on_osc_connect()
@@ -198,11 +278,206 @@ void ofApp::on_osc_connect()
 	else {
 		osc_receiver.stop();
 		osc_status.set("DISCONNECTED");
-	}	
+	}
+}
+
+void ofApp::setup_sensors()
+{
+	sensor.setGlobalPosition(0, -3350, -140 * 3);
+	sensor.setGlobalOrientation(glm::quat(0.0419488, 0.00833346, 0.194672, 0.979936));	// Calibrated 09/07/2023 @ Oolite
+	gizmo_sensor.setNode(sensor);
+	gizmo_sensor.setDisplayScale(.33);
+	for (int i = 0; i < 32; i++) {
+		skeleton.push_back(new ofNode());
+		skeleton.back()->setParent(sensor);
+	}
+	sensor_comms.setup(skeleton, port_skeleton);
+}
+
+void ofApp::update_gizmos()
+{
+	// update the sensor node to match the gizmo
+	if (gizmo_sensor.isInteracting()) {
+		cout << "[[ " << gizmo_sensor.getTranslation() << " ], [ " << gizmo_sensor.getRotation() << " ]]" << endl;
+		sensor.setGlobalPosition(gizmo_sensor.getTranslation());
+		sensor.setGlobalOrientation(gizmo_sensor.getRotation());
+	}
+}
+
+void ofApp::draw_zones()
+{
+	ofPushStyle();
+	ofPushMatrix();
+	//ofTranslate(zone.getPosition());
+	ofNoFill();
+	ofSetLineWidth(3);
+	auto pelvis = skeleton[K4ABT_JOINT_PELVIS]->getGlobalPosition();
+	if (zone.inside(pelvis.x, pelvis.z)) {
+		ofSetColor(ofColor::cyan);
+	}
+	else {
+		ofSetColor(60);
+	}
+	ofRotateX(90);
+	ofTranslate(zone.getPosition());
+	ofTranslate(0, 0, zone_pos.get().z);
+	ofDrawRectangle(0, 0, zone.getWidth(), zone.getHeight());
+	ofPopMatrix();
+	ofPopStyle();
+}
+
+void ofApp::draw_skeleton(vector<ofNode*> joints)
+{
+	joints = sensor_comms.get_data();
+	ofPushStyle();
+	int K4ABT_JOINT_COUNT = 32;
+	ofNoFill();
+	ofSetColor(250);
+	// Draw joints 
+	for (int i = 0; i < K4ABT_JOINT_COUNT; ++i)
+	{
+		ofDrawBox(joints[i]->getGlobalPosition(), 15);
+	}
+
+	// Draw bones
+	ofSetColor(ofColor::magenta);
+	// Spine
+	ofDrawLine(joints[K4ABT_JOINT_PELVIS]->getGlobalPosition(), joints[K4ABT_JOINT_SPINE_NAVEL]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_SPINE_CHEST]->getGlobalPosition(), joints[K4ABT_JOINT_SPINE_NAVEL]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_SPINE_CHEST]->getGlobalPosition(), joints[K4ABT_JOINT_NECK]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_HEAD]->getGlobalPosition(), joints[K4ABT_JOINT_NECK]->getGlobalPosition());
+
+	// Head
+	ofDrawLine(joints[K4ABT_JOINT_HEAD]->getGlobalPosition(), joints[K4ABT_JOINT_NOSE]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_EYE_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_NOSE]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_EYE_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_EYE_RIGHT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_EYE_RIGHT]->getGlobalPosition(), joints[K4ABT_JOINT_EAR_RIGHT]->getGlobalPosition());
+
+	// Left Leg
+	ofDrawLine(joints[K4ABT_JOINT_PELVIS]->getGlobalPosition(), joints[K4ABT_JOINT_HIP_LEFT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_KNEE_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_HIP_LEFT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_KNEE_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_ANKLE_LEFT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_FOOT_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_ANKLE_LEFT]->getGlobalPosition());
+
+	// Right Leg
+	ofDrawLine(joints[K4ABT_JOINT_PELVIS]->getGlobalPosition(), joints[K4ABT_JOINT_HIP_RIGHT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_KNEE_RIGHT]->getGlobalPosition(), joints[K4ABT_JOINT_HIP_RIGHT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_KNEE_RIGHT]->getGlobalPosition(), joints[K4ABT_JOINT_ANKLE_RIGHT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_FOOT_RIGHT]->getGlobalPosition(), joints[K4ABT_JOINT_ANKLE_RIGHT]->getGlobalPosition());
+
+	// Left Arm
+	ofDrawLine(joints[K4ABT_JOINT_NECK]->getGlobalPosition(), joints[K4ABT_JOINT_CLAVICLE_LEFT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_SHOULDER_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_CLAVICLE_LEFT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_SHOULDER_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_ELBOW_LEFT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_WRIST_LEFT]->getGlobalPosition(), joints[K4ABT_JOINT_ELBOW_LEFT]->getGlobalPosition());
+
+	// Right Arm
+	ofDrawLine(joints[K4ABT_JOINT_NECK]->getGlobalPosition(), joints[K4ABT_JOINT_CLAVICLE_RIGHT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_SHOULDER_RIGHT]->getGlobalPosition(), joints[K4ABT_JOINT_CLAVICLE_RIGHT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_SHOULDER_RIGHT]->getGlobalPosition(), joints[K4ABT_JOINT_ELBOW_RIGHT]->getGlobalPosition());
+	ofDrawLine(joints[K4ABT_JOINT_WRIST_RIGHT]->getGlobalPosition(), joints[K4ABT_JOINT_ELBOW_RIGHT]->getGlobalPosition());
+	ofPopStyle();
+}
+
+void ofApp::update_sensor_path()
+{
+	auto pt = skeleton[K4ABT_JOINT_PELVIS]->getGlobalPosition();
+	if (zone.inside(pt.x, pt.z)) {
+		auto hand_right = skeleton[K4ABT_JOINT_WRIST_RIGHT]->getGlobalPosition();
+		auto hand_left = skeleton[K4ABT_JOINT_WRIST_LEFT]->getGlobalPosition();
+		auto chest = skeleton[K4ABT_JOINT_SPINE_CHEST]->getGlobalPosition();
+
+		if (hand_right.y > chest.y) {
+			if (path_sensor.getVertices().size() == 0)
+				path_sensor.addVertex(hand_right);
+			else {
+				// filter out small differences
+				float dist_thresh = 10;
+				float dist_sq = glm::distance2(path_sensor.getVertices().back(), hand_right);
+				if (dist_sq > dist_thresh * dist_thresh) {
+					path_sensor.addVertex(hand_right);
+				}
+			}
+		}
+		// remove that oldest point if we're over a certain size
+		if (path_sensor.getVertices().size() > 100)
+			path_sensor.removeVertex(0);
+	}
+	// clear the path if we stepped outside the zone
+	else {
+		if (path_sensor.getVertices().size() > 0)
+			path_sensor.clear();
+	}
+}
+
+void ofApp::draw_sensor_path()
+{
+	ofPushStyle();
+	ofNoFill();
+	ofSetColor(ofColor::cyan, 128);
+	path_sensor.draw();
+	ofPopStyle();
+}
+
+void ofApp::setup_comms()
+{
+	//ofxOscReceiverSettings settings;
+	//settings.port = port_skeleton;
+	//osc_receiver_skeleton.setup(settings);
+
+}
+
+void ofApp::check_for_messages(ofxOscReceiver* receiver)
+{
+	while (receiver->hasWaitingMessages()) {
+		// get the next message
+		ofxOscMessage m;
+		receiver->getNextMessage(m);
+		if (m.getAddress() == "/body") {
+			for (int i = 0; i < 32 * 4; i += 4) {
+				int id = m.getArgAsInt(i);
+				float x = m.getArgAsFloat(i + 1);
+				float y = m.getArgAsFloat(i + 2);
+				float z = m.getArgAsFloat(i + 3);
+				skeleton[id]->setPosition(x, y, z);
+				//cout << id << ": {" << x << ", " << y << ", " << z << "}" << endl;
+			}
+			cout << endl;
+		}
+		else {
+			// unrecognized message: display on the bottom of the screen
+			string msgString;
+			msgString = m.getAddress();
+			msgString += ":";
+			for (size_t i = 0; i < m.getNumArgs(); i++) {
+
+				// get the argument type
+				msgString += " ";
+				msgString += m.getArgTypeName(i);
+				msgString += ":";
+
+				// display the argument - make sure we get the right type
+				if (m.getArgType(i) == OFXOSC_TYPE_INT32) {
+					msgString += ofToString(m.getArgAsInt32(i));
+				}
+				else if (m.getArgType(i) == OFXOSC_TYPE_FLOAT) {
+					msgString += ofToString(m.getArgAsFloat(i));
+				}
+				else if (m.getArgType(i) == OFXOSC_TYPE_STRING) {
+					msgString += m.getArgAsString(i);
+				}
+				else {
+					msgString += "unhandled argument type " + m.getArgTypeName(i);
+				}
+			}
+			cout << msgString << endl;
+		}
+	}
 }
 
 void ofApp::check_for_messages()
 {
+
 	while (osc_receiver.hasWaitingMessages()) {
 		// get the next message
 		ofxOscMessage m;
@@ -221,7 +496,7 @@ void ofApp::check_for_messages()
 
 			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
 			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
-			
+
 			//cout << "x: " << x << ", y: " << y << endl;
 
 			robots->set_target(0, x, y);
@@ -300,7 +575,7 @@ void ofApp::key_pressed_camera(int key)
 		// TOP
 		on_set_camera_view(camera_top, camera_target, 2250);
 		break;
-	case '2': 
+	case '2':
 		// SIDE
 		on_set_camera_view(camera_side, camera_target);
 		break;
@@ -352,7 +627,7 @@ void ofApp::disable_camera(bool val)
 void ofApp::on_set_camera_view(glm::vec3 position, glm::vec3 target, float distance)
 {
 	cam.setPosition(position);
-	cam.setTarget(target);	
+	cam.setTarget(target);
 	cam.setDistance(distance);
 }
 

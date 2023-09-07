@@ -808,7 +808,7 @@ void CableRobot::setup_gui()
 	params_limits.add(vel_limit.set("Vel_Limit_(RPM)", 100, 0, 300));
 	params_limits.add(accel_limit.set("Accel_Limit_(RPM/s)", 800, 0, 1000));
 	params_limits.add(bounds_min.set("Bounds_Min", 100, 0, 3000));
-	params_limits.add(bounds_max.set("Bounds_Max", 3000, 0, 3000));
+	params_limits.add(bounds_max.set("Bounds_Max", 4000, 0, 4000));
 	params_limits.add(torque_min.set("Torque_Min", -5, -5, 10));
 	params_limits.add(torque_max.set("Torque_Max", 40, 0, 100));
 
