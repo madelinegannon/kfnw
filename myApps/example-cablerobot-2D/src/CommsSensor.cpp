@@ -10,8 +10,11 @@ void CommsSensor::setup(vector<ofNode*> data, int port)
 	this->port = port;
 	ofxOscReceiverSettings settings;
 	settings.port = port;
+	
+	/* MAD EDIT 9/8/2023: TURNING OFF UNTIL WE GET A FASTER LAPTOP
 	receiver.setup(settings);
 	startThread();
+	*/
 }
 
 void CommsSensor::threadedFunction()
