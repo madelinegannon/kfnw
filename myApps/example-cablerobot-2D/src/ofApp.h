@@ -75,13 +75,24 @@ public:
 	ofParameter<string> osc_status;
 
 	ofParameterGroup params_zones;
+	ofParameterGroup params_zone_sensor;
 	ofParameter<glm::vec3> zone_pos;
 	ofParameter<float> zone_width = 3000;
 	ofParameter<float> zone_height = 1000;
 
+	ofParameterGroup params_zone_drawing;
+	ofParameter<glm::vec3> zone_drawing_pos;
+	ofParameter<float> zone_drawing_width = 3000;
+	ofParameter<float> zone_drawing_height = 1000;
+	ofParameter<int> zone_drawing_length = 10;
+
 	void on_zone_pos_changed(glm::vec3& val);
 	void on_zone_width_changed(float& val);
 	void on_zone_height_changed(float& val);
+
+	void on_zone_drawing_pos_changed(glm::vec3& val);
+	void on_zone_drawing_width_changed(float& val);
+	void on_zone_drawing_height_changed(float& val);
 
 	void on_osc_connect();
 
@@ -91,6 +102,7 @@ public:
 	void draw_zones();
 
 	ofRectangle zone;
+	ofRectangle zone_drawing;
 
 	ofNode sensor;
 	vector<ofNode*> skeleton;
@@ -98,6 +110,10 @@ public:
 	void update_sensor_path();
 	void draw_sensor_path();
 	ofPolyline path_sensor;
+
+	ofPolyline path_drawing;
+	void update_path(ofPolyline* path, glm::vec3 pt);
+	void draw_path(ofPolyline* path);
 
 	enum k4abt_joint_names {
 		K4ABT_JOINT_PELVIS,

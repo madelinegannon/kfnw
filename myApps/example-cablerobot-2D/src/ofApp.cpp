@@ -50,11 +50,29 @@ void ofApp::update() {
 	if (osc_status.get() == "CONNECTED") {
 		check_for_messages();
 	}
+	if (path_drawing.getVertices().size() > zone_drawing_length.get()) {
+		update_path(&path_drawing, path_drawing.getVertices().back());
+	}
 
 	motion->update();
 
 	if (motion->play.get())
 		robots->set_targets(motion->get_targets());
+	
+	else {
+
+		// send the robot targets to the sensor path
+		if (path_sensor.getVertices().size() > 0) {
+			vector<glm::vec3*> tgts;
+			auto pt = path_sensor.getVertices().back();
+			float offset_z = -140;
+			tgts.push_back(new glm::vec3(pt.x, pt.y, 0));
+			tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 1));
+			tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 2));
+			tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 3));
+			robots->set_targets(tgts);
+		}
+	}
 
 	// disable tha camera if we are interacting with a gizmo
 	// @NOTE 8/18/2023: this is doing it by itself for some reason
@@ -77,6 +95,7 @@ void ofApp::draw()
 	// draw the zones
 	draw_zones();
 	draw_sensor_path();
+	draw_path(&path_drawing);
 
 	gizmo_sensor.draw(cam);
 
@@ -135,6 +154,10 @@ void ofApp::keyPressed(int key) {
 		ofToggleFullscreen();
 		break;
 	}
+	case 'c':
+		cout << "Camera pos: " << ofToString(cam.getGlobalPosition()) << ", orient: " << ofToString(cam.getGlobalOrientation()) << endl;
+		
+		break;
 	default:
 		break;
 	}
@@ -231,17 +254,28 @@ void ofApp::setup_gui()
 	params.add(osc_status.set("Status", "DISCONNECTED"));
 
 	params_zones.setName("Zone_Params");
-	params_zones.add(zone_pos.set("Position", glm::vec3(0, 650, 3350), glm::vec3(-3000, -3000, 0), glm::vec3(3000, 3000, 3350)));
-	params_zones.add(zone_width.set("Width", 3000, 0, 4000));
-	params_zones.add(zone_height.set("Height", 1000, 0, 3000));
+	params_zone_sensor.setName("Zone_Sensor");
+	params_zone_sensor.add(zone_pos.set("Position", glm::vec3(0, 650, 3350), glm::vec3(-3000, -3000, 0), glm::vec3(3000, 3000, 3350)));
+	params_zone_sensor.add(zone_width.set("Width", 3000, 0, 4000));
+	params_zone_sensor.add(zone_height.set("Height", 1000, 0, 3000));
+	params_zone_drawing.setName("Zone_Drawing");
+	params_zone_drawing.add(zone_drawing_pos.set("Position", glm::vec3(0, -1600, 0), glm::vec3(-3000, -3000, 0), glm::vec3(3000, 3000, 0)));
+	params_zone_drawing.add(zone_drawing_width.set("Width", 1500, 0, 3000));
+	params_zone_drawing.add(zone_drawing_height.set("Height", 1500, 0, 3000));
+	params_zone_drawing.add(zone_drawing_length.set("Length", 20, 2, 100));
 
+	params_zones.add(params_zone_sensor);
+	params_zones.add(params_zone_drawing);
 
 	zone.setFromCenter(zone_pos.get(), zone_width.get(), zone_height.get());
-
-
 	zone_pos.addListener(this, &ofApp::on_zone_pos_changed);
 	zone_width.addListener(this, &ofApp::on_zone_width_changed);
 	zone_height.addListener(this, &ofApp::on_zone_height_changed);
+
+	zone_drawing.setFromCenter(zone_drawing_pos.get(), zone_drawing_width.get(), zone_drawing_height.get());
+	zone_drawing_pos.addListener(this, &ofApp::on_zone_drawing_pos_changed);
+	zone_drawing_width.addListener(this, &ofApp::on_zone_drawing_width_changed);
+	zone_drawing_height.addListener(this, &ofApp::on_zone_drawing_height_changed);
 
 	panel.add(params);
 	panel.add(params_zones);
@@ -265,6 +299,21 @@ void ofApp::on_zone_width_changed(float& val)
 void ofApp::on_zone_height_changed(float& val)
 {
 	zone.setFromCenter(zone_pos.get(), zone_width.get(), val);
+}
+
+void ofApp::on_zone_drawing_pos_changed(glm::vec3& val)
+{
+	zone_drawing.setFromCenter(val, zone_drawing_width.get(), zone_drawing_height.get());
+}
+
+void ofApp::on_zone_drawing_width_changed(float& val)
+{
+	zone_drawing.setFromCenter(zone_drawing_pos.get(), val, zone_drawing_height.get());
+}
+
+void ofApp::on_zone_drawing_height_changed(float& val)
+{
+	zone_drawing.setFromCenter(zone_drawing_pos.get(), zone_drawing_width.get(), val);
 }
 
 void ofApp::on_osc_connect()
@@ -308,7 +357,6 @@ void ofApp::draw_zones()
 {
 	ofPushStyle();
 	ofPushMatrix();
-	//ofTranslate(zone.getPosition());
 	ofNoFill();
 	ofSetLineWidth(3);
 	auto pelvis = skeleton[K4ABT_JOINT_PELVIS]->getGlobalPosition();
@@ -323,6 +371,10 @@ void ofApp::draw_zones()
 	ofTranslate(0, 0, zone_pos.get().z);
 	ofDrawRectangle(0, 0, zone.getWidth(), zone.getHeight());
 	ofPopMatrix();
+
+	ofSetColor(60);
+	ofDrawRectangle(zone_drawing);
+
 	ofPopStyle();
 }
 
@@ -400,7 +452,7 @@ void ofApp::update_sensor_path()
 			}
 		}
 		// remove that oldest point if we're over a certain size
-		if (path_sensor.getVertices().size() > 100)
+		if (path_sensor.getVertices().size() > 50)
 			path_sensor.removeVertex(0);
 	}
 	// clear the path if we stepped outside the zone
@@ -416,6 +468,47 @@ void ofApp::draw_sensor_path()
 	ofNoFill();
 	ofSetColor(ofColor::cyan, 128);
 	path_sensor.draw();
+	ofPopStyle();
+}
+
+void ofApp::update_path(ofPolyline* path, glm::vec3 pt)
+{
+	if (path->getVertices().size() == 0)
+		path->addVertex(pt);
+	else {
+		// filter out small moves
+		float dist_thresh = 10;
+		float dist_sq = glm::distance2(path->getVertices().back(), pt);
+		if (dist_sq > dist_thresh * dist_thresh) {
+			path->addVertex(pt);
+		}
+	}
+	// cap the length of the path
+	if (path->getVertices().size() > zone_drawing_length.get()) {
+		path->removeVertex(0);
+	}
+
+	// move the robots
+	if (path_drawing.getVertices().size() > 1) {
+		auto pt_0 = path_drawing.getPointAtPercent(0.0);
+		auto pt_1 = path_drawing.getPointAtPercent(0.33);
+		auto pt_2 = path_drawing.getPointAtPercent(0.66);
+		auto pt_3 = path_drawing.getPointAtPercent(1.0);
+
+		robots->set_target(3, pt_3.x, pt_3.y);
+		robots->set_target(2, pt_2.x, pt_2.y);
+		robots->set_target(1, pt_1.x, pt_1.y);
+		robots->set_target(0, pt_0.x, pt_0.y);
+	}
+}
+
+void ofApp::draw_path(ofPolyline* path)
+{
+	ofPushStyle();
+	ofNoFill(); 
+	ofSetLineWidth(2);
+	ofSetColor(ofColor::magenta);
+	path->draw();
 	ofPopStyle();
 }
 
@@ -483,10 +576,10 @@ void ofApp::check_for_messages()
 		ofxOscMessage m;
 		osc_receiver.getNextMessage(m);
 
-		float bounds_x_min = -300;
-		float bounds_x_max = 300;
-		float bounds_y_min = -650;
-		float bounds_y_max = -1250;
+		float bounds_x_min = zone_drawing.getTopLeft().x;
+		float bounds_x_max = zone_drawing.getBottomRight().x;
+		float bounds_y_min = zone_drawing.getBottomRight().y;
+		float bounds_y_max = zone_drawing.getTopLeft().y; 
 
 		// We received a normalized XY target in range {[0,1], [0,1]}
 		if (m.getAddress() == "/tgt_norm") {
@@ -498,8 +591,27 @@ void ofApp::check_for_messages()
 			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			//cout << "x: " << x << ", y: " << y << endl;
+			//robots->set_target(0, x, y);
+			update_path(&path_drawing, glm::vec3(x, y, 0));
+			//if (path_drawing.getVertices().size() > 1) {
+			//	auto pt_0 = path_drawing.getPointAtPercent(0.0);
+			//	auto pt_1 = path_drawing.getPointAtPercent(0.33);
+			//	auto pt_2 = path_drawing.getPointAtPercent(0.66);
+			//	auto pt_3 = path_drawing.getPointAtPercent(1.0);
 
-			robots->set_target(0, x, y);
+			//	robots->set_target(3, pt_3.x, pt_3.y);
+			//	robots->set_target(2, pt_2.x, pt_2.y);
+			//	robots->set_target(1, pt_1.x, pt_1.y);
+			//	robots->set_target(0, pt_0.x, pt_0.y);
+			//}
+		}
+		else if (m.getAddress() == "/drawing/clear") {
+			path_drawing.clear();
+		}
+		else if (m.getAddress() == "/drawing/num_pts") {
+			float val = m.getArgAsFloat(0); // normalized value between 0 and 1
+			int num_pts = int(ofMap(val, 0, 1, zone_drawing_length.getMin(), zone_drawing_length.getMax(), true));
+			zone_drawing_length.set(num_pts);
 		}
 		else if (m.getAddress() == "/values/label18/gamepad/stick_left_x") {
 			float x = stof(m.getArgAsString(0));
@@ -581,11 +693,17 @@ void ofApp::key_pressed_camera(int key)
 		break;
 	case '3':
 		// FRONT
-		on_set_camera_view(camera_front, camera_target);
+
+		//Camera pos: -1152.07, -1986.03, 4307.33, orient: 1, 0, 0, 0
+		cam.setGlobalPosition(-1152.07, -1986.03, 4307.33);// -1010.88, -1967.36, 3923.83);
+		cam.setGlobalOrientation(glm::quat(1, 0, 0, 0));
+		//on_set_camera_view(camera_front, camera_target);
 		break;
 	case '4':
-		// PERSPECTIVE
-		on_set_camera_view(camera_perspective, camera_target);
+		// PERSPECTIVE		
+		cam.setGlobalPosition(2436.1, -1399.14, 5507.93);
+		cam.setGlobalOrientation(glm::quat(0.923639, -0.0197251, 0.382754, 0.00137394));
+		//on_set_camera_view(camera_perspective, camera_target);
 		break;
 	default:
 		break;
