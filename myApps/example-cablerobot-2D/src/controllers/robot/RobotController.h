@@ -87,6 +87,8 @@ public:
     void pause();
     void set_e_stop(bool val);
 
+    void move_vel_all(bool val);
+
     void key_pressed(int key);
 
     vector<ofxGizmo*> get_gizmos() { return gizmos; }

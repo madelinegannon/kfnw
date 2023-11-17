@@ -95,7 +95,7 @@ public:
 
 	// New World Params 11/16/2023 
 	// Motors hung at 19'2"
-	bool use_nws_params = true;
+	bool use_nws_params = false;
 	glm::vec3 nws_zone_drawing_pos = glm::vec3(0, -4000, 0);
 	float nws_zone_drawing_height = 1500;
 	float nws_zone_drawing_width = 3000;

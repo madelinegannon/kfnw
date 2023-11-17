@@ -54,12 +54,12 @@ void ofApp::setup() {
 	// Nest the robot panel under the OSC panel
 	robots->panel.setPosition(panel.getPosition().x, panel.getPosition().y + panel.getHeight() + 5);
 
-	motion->panel.add(agents->params);
+	//motion->panel.add(agents->params);
 
 	if (use_nws_params) {
 		motion->pos.set(nws_zone_drawing_pos);
-		motion->motion_line_pos.setMin(nws_motion_line_pos_min);
-		motion->motion_line_pos.set(nws_zone_drawing_pos);
+		motion->motion_pos.setMin(nws_motion_line_pos_min);
+		motion->motion_pos.set(nws_zone_drawing_pos);
 	}
 }
 
@@ -174,7 +174,7 @@ void ofApp::draw()
 	panel.draw();
 	robots->draw_gui();
 	motion->draw_gui();
-	
+
 
 	ofDrawBitmapStringHighlight(ofToString(ofGetFrameRate()), ofGetWidth() - 100, 20);
 }
@@ -695,8 +695,16 @@ void ofApp::check_for_messages()
 		float bounds_y_min = zone_drawing.getBottomRight().y;
 		float bounds_y_max = zone_drawing.getTopLeft().y;
 
+		if (m.getAddress() == "/stop") {
+			// stop all the cablebots (same as pressing SPACEBAR)
+			robots->pause();
+		}		
+		else if (m.getAddress() == "/move") {
+			// turn on move_vel for all the cablebots
+			robots->move_vel_all(m.getArgAsBool(0));
+		}
 		// We received a normalized XY target in range {[0,1], [0,1]}
-		if (m.getAddress() == "/drawing/tgt_norm") {
+		else if (m.getAddress() == "/drawing/tgt_norm") {
 			int i = m.getArgAsInt(0);
 			float x = m.getArgAsFloat(1);
 			float y = m.getArgAsFloat(2);
@@ -714,6 +722,7 @@ void ofApp::check_for_messages()
 		}
 		else if (m.getAddress() == "/drawing/enable_follow") {
 			zone_drawing_follow.set(m.getArgAsBool(0));
+			motion->motion_drawing_follow.set(m.getArgAsBool(0));
 		}
 		else if (m.getAddress() == "/drawing/accuracy") {
 			float val = ofMap(m.getArgAsFloat(0), 0, 1, zone_drawing_accuracy.getMin(), zone_drawing_accuracy.getMax());
@@ -736,11 +745,18 @@ void ofApp::check_for_messages()
 			motion->motion_line_length.set(val);
 		}
 		else if (m.getAddress() == "/line/reset") {
-			motion->on_motion_line_reset();
+			motion->on_motion_reset();
 		}
 		else if (m.getAddress() == "/line/theta") {
-			float val = ofMap(m.getArgAsFloat(0), -1, 1, motion->motion_line_theta.getMin(), motion->motion_line_theta.getMax());
-			motion->motion_line_theta.set(val);
+			float val = ofMap(m.getArgAsFloat(0), -1, 1, motion->motion_theta.getMin(), motion->motion_theta.getMax());
+			motion->motion_theta.set(val);
+		}
+		else if (m.getAddress() == "/line/spin") {
+			motion->motion_spin_enable.set(m.getArgAsBool(0));
+		}
+		else if (m.getAddress() == "/line/spin_speed") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_spin_speed.getMin(), motion->motion_spin_speed.getMax());
+			motion->motion_spin_speed.set(val);
 		}
 		else if (m.getAddress() == "/line/position") {
 			float x = m.getArgAsFloat(0);
@@ -749,13 +765,67 @@ void ofApp::check_for_messages()
 			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
 			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
-			motion->motion_line_pos.set(glm::vec3(x, y, 0));
+			motion->motion_pos.set(glm::vec3(x, y, 0));
 		}
-		else if (m.getAddress() == "/circle/rot") {
-			motion->rotate(m.getArgAsFloat(0));
+		else if (m.getAddress() == "/line/start") {
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->motion_line.getVertices()[0].x = x;
+			motion->motion_line.getVertices()[0].y = y;
+			motion->calculate_theta(motion->motion_line);
+			//motion->motion_pos.set(motion->motion_line.getCentroid2D());
 		}
-		else if (m.getAddress() == "/circle/scale") {
-			motion->scale(m.getArgAsFloat(0));
+		else if (m.getAddress() == "/line/end") {
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->motion_line.getVertices()[1].x = x;
+			motion->motion_line.getVertices()[1].y = y;
+			motion->calculate_theta(motion->motion_line);
+			//motion->motion_pos.set(motion->motion_line.getCentroid2D());
+		}
+		//else if (m.getAddress() == "/circle/rot") {
+		//	motion->rotate(m.getArgAsFloat(0));
+		//}
+		//else if (m.getAddress() == "/circle/scale") {
+		//	motion->scale(m.getArgAsFloat(0));
+		//}
+		else if (m.getAddress() == "/circle/enable_follow") {
+			motion->motion_circle_follow.set(m.getArgAsBool(0));
+		}
+		else if (m.getAddress() == "/circle/radius") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_circle_radius.getMin(), motion->motion_circle_radius.getMax());
+			motion->motion_circle_radius.set(val);
+		}
+		else if (m.getAddress() == "/circle/theta") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_theta.getMin(), motion->motion_theta.getMax());
+			motion->motion_theta.set(val);
+		}
+		else if (m.getAddress() == "/circle/position") {
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->motion_pos.set(glm::vec3(x, y, 0));
+		}
+		else if (m.getAddress() == "/circle/reset") {
+			motion->on_motion_reset();
+		}
+		else if (m.getAddress() == "/circle/arc_angle") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_circle_angle_start.getMin(), motion->motion_circle_angle_start.getMax());
+			float theta = 90 + val / 2.0;
+			motion->motion_circle_angle_end.set(theta);
+			theta = 90 - val / 2.0;
+			motion->motion_circle_angle_start.set(theta);
 		}
 
 		// We received an absolute XY target in range {[0,0], [bounds.min,bounds.max]}

@@ -56,25 +56,52 @@ public:
 	ofParameter<bool> play;
 	ofParameter<void> reset;
 
+	ofParameterGroup params_motion;
 	ofParameterGroup params_motion_line;
 	float motion_line_rotation = 0;
-	ofParameter<glm::vec3> motion_line_pos;
+	ofParameter<glm::vec3> motion_pos;
+	glm::vec3 motion_pos_prev = glm::vec3();
 	ofParameter<float> motion_line_length = 2000;
-	ofParameter<float> motion_line_theta = 0;
+	ofParameter<float> motion_theta = 0;
+	ofParameter<bool> motion_drawing_follow = false;
 	ofParameter<bool> motion_line_follow = false;
-	ofParameter<void> motion_line_reset;
+	ofParameter<bool> motion_circle_follow = false;
+	ofParameter<void> motion_reset;
+	ofParameter<bool> motion_spin_enable = false;
+	ofParameter<float> motion_spin_speed = 0;
+	ofParameterGroup params_motion_circle;
+	ofParameter<float> motion_circle_radius = 1000;
+	ofParameter<float> motion_circle_angle_start = 0;
+	ofParameter<float> motion_circle_angle_end = 180;
+
+	void on_motion_drawing_follow(bool& val);
+	void on_motion_line_follow(bool& val);
+	void on_motion_circle_follow(bool& val);
+	void on_motion_circle_radius(float& val);
+	void on_motion_circle_angle_start(float& val);
+	void on_motion_circle_angle_end(float& val);
 
 	void rotate(ofPolyline* path, float theta);
 
-	void on_motion_line_pos_changed(glm::vec3& val);
+	void on_motion_pos_changed(glm::vec3& val);
 	void on_motion_line_length_changed(float& val);
-	void on_motion_line_theta_changed(float& val);
-	void on_motion_line_reset();
+	void on_motion_theta_changed(float& val);
+	void on_motion_reset();
+
+	void calculate_theta(ofPolyline path);
 
 	ofPolyline motion_line;
 	void setup_motion_line();
 	void draw_motion_line();
 	void update_motion_line();
+
+	ofPolyline motion_circle;
+	void setup_motion_circle();
+	void draw_motion_circle();
+	void update_motion_circle(float start_angle = 0, float end_angle = 180, float resolution = 3);
+
+
+
 
 	void on_play(bool& val);
 	void on_pos_changed(glm::vec3& val);

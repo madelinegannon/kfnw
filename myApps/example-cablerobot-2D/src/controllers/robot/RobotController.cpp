@@ -406,6 +406,7 @@ void RobotController::play()
 
 void RobotController::pause()
 {
+	ofLogNotice(__FUNCTION__) << "Stopping Robots ...";
 	state = ControllerState::PAUSE;
 	if (system_config == Configuration::ONE_D) {
 		for (int i = 0; i < robots.size(); i++) {
@@ -464,6 +465,19 @@ void RobotController::key_pressed(int key)
 		for (int i = 0; i < robots_2D.size(); i++)
 			robots_2D[i]->key_pressed(key);
 	}	
+}
+
+void RobotController::move_vel_all(bool val)
+{
+	ofLogNotice(__FUNCTION__) << "Turning Velocity Moves [" << (val ? "ON" : "OFF") << "]";
+	if (system_config == Configuration::ONE_D) {
+		for (int i = 0; i < robots.size(); i++)
+			robots[i]->move_to_vel.set(val);
+	}
+	else if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++)
+			robots_2D[i]->move_to_vel.set(val);
+	}
 }
 
 void RobotController::key_pressed_gizmo(int key)
