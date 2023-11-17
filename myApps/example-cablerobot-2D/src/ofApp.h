@@ -8,6 +8,7 @@
 
 #include "controllers/robot/RobotController.h"
 #include "controllers/motion/MotionController.h"
+#include "controllers/agent/AgentController.h"
 
 #define DEBUG
 
@@ -34,6 +35,8 @@ public:
 
 	RobotController* robots;
 	MotionController* motion;
+	AgentController* agents;
+
 	ofNode origin;
 	ofEasyCam cam;
 
@@ -85,6 +88,20 @@ public:
 	ofParameter<float> zone_drawing_width = 3000;
 	ofParameter<float> zone_drawing_height = 1000;
 	ofParameter<int> zone_drawing_length = 10;
+	ofParameter<float> zone_drawing_accuracy = 25; // zone (in mm) to move to next  point
+	ofParameter<bool> zone_drawing_follow = true;
+	ofParameter<float> zone_drawing_follow_offset = 50;
+
+
+	// New World Params 11/16/2023 
+	// Motors hung at 19'2"
+	bool use_nws_params = true;
+	glm::vec3 nws_zone_drawing_pos = glm::vec3(0, -4000, 0);
+	float nws_zone_drawing_height = 1500;
+	float nws_zone_drawing_width = 3000;
+	glm::vec3 nws_motion_line_pos_min = glm::vec3(-2000, -5250, 0);
+
+
 
 	void on_zone_pos_changed(glm::vec3& val);
 	void on_zone_width_changed(float& val);
@@ -112,6 +129,8 @@ public:
 	ofPolyline path_sensor;
 
 	ofPolyline path_drawing;
+	vector<ofPolyline*> drawing_paths;
+	void update_drawing_path(ofPolyline* path, glm::vec3 pt);
 	void update_path(ofPolyline* path, glm::vec3 pt);
 	void draw_path(ofPolyline* path);
 

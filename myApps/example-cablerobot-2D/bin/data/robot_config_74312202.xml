@@ -5,9 +5,9 @@
     <auto_home>0</auto_home>
     <kinematics>
         <base>
-            <X>2750.000000000</X>
+            <X>6100.000000000</X>
             <Y>0.000000000</Y>
-            <Z>-280</Z>
+            <Z>-140</Z>
         </base>
         <tangent>
             <X>0.000000000</X>
@@ -24,7 +24,7 @@
         <vel_limit>35.000000000</vel_limit>
         <accel_limit>120.000000000</accel_limit>
         <bounds_min>100.000000000</bounds_min>
-        <bounds_max>3000.000000000</bounds_max>
+        <bounds_max>5000.000000000</bounds_max>
         <bounds_shutdown>2140.000000000</bounds_shutdown>
         <torque_min>-5.000000000</torque_min>
         <torque_max>40.000000000</torque_max>

@@ -13,6 +13,7 @@ CableRobot2D::CableRobot2D(CableRobot* top_left, CableRobot* top_right, ofNode* 
 	this->id = id;
 
 	setup_gui();
+
 	
 	// Setup the end effector
 	this->ee = new ofNode();
@@ -216,6 +217,7 @@ void CableRobot2D::draw()
 
 	ofPopStyle();
 
+
 	//for (int i = 0; i < robots.size(); i++) {
 	//	robots[i]->draw();
 	//}
@@ -294,8 +296,12 @@ void CableRobot2D::update_gizmo()
 	}
 	else if (gizmo_ee.getTranslation() != ee->getGlobalPosition() ||
 		gizmo_ee.getRotation() != ee->getGlobalOrientation()) {
-		ee->setGlobalPosition(gizmo_ee.getTranslation());
+		// override the Z position ... it's jumping around for some reason
+		auto p = gizmo_ee.getTranslation();
+		p.z = base_top_left.z;
+		ee->setGlobalPosition(p);
 		ee->setGlobalOrientation(gizmo_ee.getRotation());
+		gizmo_ee.setNode(*ee);
 		// update the gui
 		if (gizmo_ee.isInteracting()) {
 			auto pos = ee->getPosition();
@@ -305,6 +311,21 @@ void CableRobot2D::update_gizmo()
 	// update bounds if we've moved the origin gizmo
 	if (bounds.getPosition() != robots[0]->get_tangent().getGlobalPosition())
 		bounds.setPosition(robots[0]->get_tangent().getGlobalPosition());
+}
+
+void CableRobot2D::add_to_path(glm::vec3 pos) {
+	if (path.getVertices().size() == 0) {
+		path.addVertex(pos);
+	}
+	else {
+		auto p = path.getVertices().back();
+		float threshold = 50;
+		float dist_sq = glm::distance2(pos, p);
+		if (dist_sq > threshold * threshold &&
+			dist_sq < (threshold * 10) * (threshold * 10)) {
+			path.addVertex(pos);
+		}
+	}
 }
 
 void CableRobot2D::key_pressed(int key)
@@ -364,6 +385,8 @@ void CableRobot2D::draw_cables_actual(glm::vec3 start_0, glm::vec3 end_0, float 
 	end_0 = start_0 + heading_0;
 	end_1 = start_1 + heading_1;
 
+	estimated_target_actual = (end_0 + end_1) / 2;
+
 	ofSetLineWidth(2);
 	ofSetColor(255);
 	ofDrawLine(start_0, end_0);
@@ -376,6 +399,10 @@ void CableRobot2D::draw_cables_actual(glm::vec3 start_0, glm::vec3 end_0, float 
 	ofFill();
 	ofSetColor(ofColor::orange, 200);
 	ofDrawEllipse(end_1, 40, 40);
+
+	ofDrawLine(end_0, end_1);
+	ofSetColor(ofColor::red, 200);
+	ofDrawEllipse(estimated_target_actual, 40, 40);
 }
 
 
@@ -388,7 +415,16 @@ void CableRobot2D::draw_cables_2D() {
 
 		float actual_0 = robots[0]->position_actual;
 		float actual_1 = robots[1]->position_actual;
-		//float actual_0 = robots[0]->get_position_actual();
+
+		// position_actual is 0 by default ... default to the center of the bounds
+		if (actual_0 == 0) {
+			robots[0]->position_actual = bounds.getCenter().y * -1;
+			robots[1]->position_actual = bounds.getCenter().y * -1;
+			actual_0 = robots[0]->position_actual;
+			actual_1 = robots[1]->position_actual;
+		}
+
+		//float actual_0 = robots[0]->get_position_actual();	// <-- !!!caused HUGE delays!!!
 		//float actual_1 = robots[1]->get_position_actual();
 
 		glm::vec3 start_0 = robots[0]->get_tangent_ptr()->getGlobalPosition();
@@ -405,7 +441,11 @@ void CableRobot2D::draw_cables_2D() {
 		ofDrawEllipse(end_1, zone.get() * 2, zone.get() * 2);
 
 		draw_cables_actual(start_0, end_0, actual_0, start_1, end_1, actual_1);
-	}	
+	}
+
+	ofSetColor(255, 0, 255);
+	ofNoFill();
+	path.draw();
 
 	//ofPopStyle();
 }
@@ -623,6 +663,9 @@ void CableRobot2D::on_move_to_vel(bool& val)
 {
 	for (int i = 0; i < robots.size(); i++)
 		robots[i]->on_move_to_vel(val);
+
+	if (!val)
+		path.clear();
 }
 
 

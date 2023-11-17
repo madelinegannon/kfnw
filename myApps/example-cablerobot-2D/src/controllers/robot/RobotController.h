@@ -96,9 +96,12 @@ public:
     void set_ee(glm::vec3 pos, glm::quat orient = glm::quat(0, 0, 0, 1));
 
     void set_targets(vector<glm::vec3*> targets);
+    void set_targets(vector<glm::vec3> targets);
     void set_target(int i, float x, float y);
     void set_target_x(int i, float x);
     void set_target_y(int i, float y);
+    glm::vec3 get_target(int i);
+    vector<glm::vec3> get_targets();
 
     ofxPanel panel;
     ofParameter<string> status;

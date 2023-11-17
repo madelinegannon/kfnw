@@ -9,7 +9,7 @@ void CommsSensor::setup(vector<ofNode*> data, int port)
 	this->data = data;
 	this->port = port;
 	ofxOscReceiverSettings settings;
-	settings.port = port;
+	settings.port = 55555;// port;
 	
 	/* MAD EDIT 9/8/2023: TURNING OFF UNTIL WE GET A FASTER LAPTOP
 	receiver.setup(settings);
@@ -25,7 +25,7 @@ void CommsSensor::threadedFunction()
 }
 
 void CommsSensor::check_for_message()
-{
+{	
 	while (receiver.hasWaitingMessages()) {
 		// get the next message
 		ofxOscMessage m;
@@ -39,6 +39,12 @@ void CommsSensor::check_for_message()
 				data[id]->setPosition(x, y, z);				
 				//cout << id << ": {" << x << ", " << y << ", " << z << "}" << endl;
 			}
+		}
+		else if (m.getAddress() == "/tgt_norm") {
+			int i = m.getArgAsInt(0);
+			float x = m.getArgAsFloat(1);
+			float y = m.getArgAsFloat(2);
+			pt = glm::vec3(x, y, 0);
 		}
 		else {
 			// unrecognized message: display on the bottom of the screen

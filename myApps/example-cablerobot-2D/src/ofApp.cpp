@@ -13,7 +13,7 @@ void ofApp::setup() {
 	setup_camera();
 
 	// set the postions of each motor
-	int offset = 2500; // mm
+	int offset = 6100;// 2750; // mm
 	int offset_z = -140; //mm
 	int num_cable_bots = 4;
 	int num_motors = num_cable_bots * 2;
@@ -22,7 +22,10 @@ void ofApp::setup() {
 	for (int j = 0; j < num_cable_bots; j++) {
 		for (int i = 0; i < count; i++) {
 			positions.push_back(glm::vec3(offset * i, 0, offset_z * j));
+			//cout << "bases: " << ofToString(positions[i]);			
 		}
+		drawing_paths.push_back(new ofPolyline());
+		//drawing_paths[i]->translate(glm::vec3(0, 0, offset_z * j));
 	}
 
 	// set the world coordinate system of the robots (flip to match screen coord axes)
@@ -31,18 +34,40 @@ void ofApp::setup() {
 	robots = new RobotController(positions, &origin);
 	motion = new MotionController(positions, &origin, offset_z);
 
+	agents = new AgentController();
+	agents->setup(num_cable_bots);
+	vector<ofNode*> tgts;
+	for (int i = 0; i < num_cable_bots; i++) {
+		ofNode node;
+		node.setGlobalPosition(0, -2500, 0);
+		tgts.push_back(&node);
+	}
+	agents->set_targets(tgts);
 
-	on_set_camera_view(camera_top, camera_target, 2250);
+
+	cam.setGlobalPosition(2436.1, -1399.14, 5507.93);
+	cam.setGlobalOrientation(glm::quat(0.923639, -0.0197251, 0.382754, 0.00137394));
+
+
 	ofSetFrameRate(60);
 
 	// Nest the robot panel under the OSC panel
 	robots->panel.setPosition(panel.getPosition().x, panel.getPosition().y + panel.getHeight() + 5);
+
+	motion->panel.add(agents->params);
+
+	if (use_nws_params) {
+		motion->pos.set(nws_zone_drawing_pos);
+		motion->motion_line_pos.setMin(nws_motion_line_pos_min);
+		motion->motion_line_pos.set(nws_zone_drawing_pos);
+	}
 }
 
 //--------------------------------------------------------------
 void ofApp::update() {
 	update_gizmos();
 	update_sensor_path();
+	//update_drawing_path(&path_drawing, sensor_comms.get_incoming_pt());
 	//check_for_messages(&osc_receiver_skeleton);
 
 	skeleton = sensor_comms.get_data();
@@ -50,15 +75,26 @@ void ofApp::update() {
 	if (osc_status.get() == "CONNECTED") {
 		check_for_messages();
 	}
-	if (path_drawing.getVertices().size() > zone_drawing_length.get()) {
+	if (path_drawing.getVertices().size()) {// > zone_drawing_length.get()) {
 		update_path(&path_drawing, path_drawing.getVertices().back());
 	}
 
 	motion->update();
+	//agents->set_targets(motion->get_targets());
+	//agents->update();
+	////agents->update(robots->get_targets()); // <-- NOT WORKING
 
-	if (motion->play.get())
+	if (motion->play.get()) {
+		//auto agent_targets = agents->get_trail_targets();
+		//if (agent_targets.size() > 0) {
+		//	robots->set_targets(agent_targets);
+		//}
+		//else {
+		//	robots->set_targets(motion->get_targets());
+		//}
 		robots->set_targets(motion->get_targets());
-	
+	}
+
 	else {
 
 		// send the robot targets to the sensor path
@@ -122,6 +158,10 @@ void ofApp::draw()
 
 	// draw the robots
 	robots->draw();
+
+	// draw the agents
+	agents->draw();
+
 	// draw all the gizmos
 	for (auto gizmo : robots->get_gizmos())
 		gizmo->draw(cam);
@@ -134,6 +174,7 @@ void ofApp::draw()
 	panel.draw();
 	robots->draw_gui();
 	motion->draw_gui();
+	
 
 	ofDrawBitmapStringHighlight(ofToString(ofGetFrameRate()), ofGetWidth() - 100, 20);
 }
@@ -156,7 +197,7 @@ void ofApp::keyPressed(int key) {
 	}
 	case 'c':
 		cout << "Camera pos: " << ofToString(cam.getGlobalPosition()) << ", orient: " << ofToString(cam.getGlobalOrientation()) << endl;
-		
+
 		break;
 	default:
 		break;
@@ -258,13 +299,17 @@ void ofApp::setup_gui()
 	params_zone_sensor.add(zone_pos.set("Position", glm::vec3(0, 650, 3350), glm::vec3(-3000, -3000, 0), glm::vec3(3000, 3000, 3350)));
 	params_zone_sensor.add(zone_width.set("Width", 3000, 0, 4000));
 	params_zone_sensor.add(zone_height.set("Height", 1000, 0, 3000));
-	params_zone_drawing.setName("Zone_Drawing");
-	params_zone_drawing.add(zone_drawing_pos.set("Position", glm::vec3(0, -1600, 0), glm::vec3(-3000, -3000, 0), glm::vec3(3000, 3000, 0)));
-	params_zone_drawing.add(zone_drawing_width.set("Width", 1500, 0, 3000));
-	params_zone_drawing.add(zone_drawing_height.set("Height", 1500, 0, 3000));
-	params_zone_drawing.add(zone_drawing_length.set("Length", 20, 2, 100));
 
-	params_zones.add(params_zone_sensor);
+	params_zone_drawing.setName("Zone_Drawing");
+	params_zone_drawing.add(zone_drawing_pos.set("Position", glm::vec3(0, -2750, 0), glm::vec3(-3000, -5000, 0), glm::vec3(3000, 0000, 0)));
+	params_zone_drawing.add(zone_drawing_width.set("Width", 3000, 0, 5000));
+	params_zone_drawing.add(zone_drawing_height.set("Height", 2500, 0, 6000));
+	params_zone_drawing.add(zone_drawing_follow.set("Follow_the_Leader", true));
+	params_zone_drawing.add(zone_drawing_length.set("Length", 20, 2, 100));
+	params_zone_drawing.add(zone_drawing_follow_offset.set("Follow_Offset", 50, 0, 1000));
+	params_zone_drawing.add(zone_drawing_accuracy.set("Accuracy", 50, 10, 100));
+
+	//params_zones.add(params_zone_sensor);
 	params_zones.add(params_zone_drawing);
 
 	zone.setFromCenter(zone_pos.get(), zone_width.get(), zone_height.get());
@@ -276,6 +321,13 @@ void ofApp::setup_gui()
 	zone_drawing_pos.addListener(this, &ofApp::on_zone_drawing_pos_changed);
 	zone_drawing_width.addListener(this, &ofApp::on_zone_drawing_width_changed);
 	zone_drawing_height.addListener(this, &ofApp::on_zone_drawing_height_changed);
+
+	if (use_nws_params) {
+		zone_drawing_pos.set(nws_zone_drawing_pos);
+		zone_drawing_width.set(nws_zone_drawing_width);
+		zone_drawing_height.set(nws_zone_drawing_height);
+		zone_pos.set(glm::vec3(zone_pos.get().x, zone_drawing_pos.get().y - zone_drawing_height.get() / 2, zone_pos.get().z));
+	}
 
 	panel.add(params);
 	panel.add(params_zones);
@@ -471,41 +523,103 @@ void ofApp::draw_sensor_path()
 	ofPopStyle();
 }
 
+void ofApp::update_drawing_path(ofPolyline* path, glm::vec3 pt)
+{
+	// map incoming point to drawing zone
+	float bounds_x_min = zone_drawing.getTopLeft().x;
+	float bounds_x_max = zone_drawing.getBottomRight().x;
+	float bounds_y_min = zone_drawing.getBottomRight().y;
+	float bounds_y_max = zone_drawing.getTopLeft().y;
+
+	float x = ofMap(pt.x, 0, 1, bounds_x_min, bounds_x_max);
+	float y = ofMap(pt.y, 0, 1, bounds_y_min, bounds_y_max);
+
+	update_path(path, glm::vec3(x, y, 0));
+}
+
 void ofApp::update_path(ofPolyline* path, glm::vec3 pt)
 {
-	if (path->getVertices().size() == 0)
+	if (path->getVertices().size() == 0) {
 		path->addVertex(pt);
+	}
 	else {
 		// filter out small moves
-		float dist_thresh = 10;
+		float dist_thresh = 20;
 		float dist_sq = glm::distance2(path->getVertices().back(), pt);
 		if (dist_sq > dist_thresh * dist_thresh) {
 			path->addVertex(pt);
+
 		}
 	}
 	// cap the length of the path
 	if (path->getVertices().size() > zone_drawing_length.get()) {
-		path->removeVertex(0);
+		//path->removeVertex(0);
 	}
 
 	// move the robots
-	if (path_drawing.getVertices().size() > 1) {
-		auto pt_0 = path_drawing.getPointAtPercent(0.0);
-		auto pt_1 = path_drawing.getPointAtPercent(0.33);
-		auto pt_2 = path_drawing.getPointAtPercent(0.66);
-		auto pt_3 = path_drawing.getPointAtPercent(1.0);
+	if (path->getVertices().size() > 2) {	// POLYLINE MUST HAVE AT LEAST 3 POINTS, OTHERWISE SENDS TO (0,0,0)
 
-		robots->set_target(3, pt_3.x, pt_3.y);
-		robots->set_target(2, pt_2.x, pt_2.y);
-		robots->set_target(1, pt_1.x, pt_1.y);
+		float dist_thresh = zone_drawing_accuracy.get();
+
+		auto pt_0 = path->getPointAtPercent(0.0);
+		auto pt_1 = robots->get_target(0);// path_drawing.getPointAtPercent(0.33);
+		auto pt_2 = robots->get_target(1);// path_drawing.getPointAtPercent(0.66);
+		auto pt_3 = robots->get_target(2);// path_drawing.getPointAtPercent(1.0);
+		/*auto pt_1 = path_drawing.getPointAtPercent(0.33);
+		auto pt_2 = path_drawing.getPointAtPercent(0.66);
+		auto pt_3 = path_drawing.getPointAtPercent(1.0);*/
+
+		//cout << "robots->get_target(0): " << robots->get_target(0) << ", pt_0: " << pt_0 << endl;
+		auto mid_pt = robots->get_target(0);
+		float dist_sq = glm::distance2(pt_0, mid_pt);
+		if (dist_sq < dist_thresh * dist_thresh) {
+			path->removeVertex(0);
+			pt_0 = path_drawing.getPointAtPercent(0.0);
+
+
+
+			//pt_1 = robots->get_target(0);// path_drawing.getPointAtPercent(0.33);
+			//pt_2 = robots->get_target(1);// path_drawing.getPointAtPercent(0.66);
+			//pt_3 = robots->get_target(2);// path_drawing.getPointAtPercent(1.0);
+		}
+
 		robots->set_target(0, pt_0.x, pt_0.y);
+		// follow the leader
+		if (zone_drawing_follow.get()) {
+			float offset = zone_drawing_follow_offset.get(); //300;
+
+			// send them to the same point
+			if (offset < 50) {
+				robots->set_target(1, pt_0.x, pt_0.y);
+				robots->set_target(2, pt_0.x, pt_0.y);
+				robots->set_target(3, pt_0.x, pt_0.y);
+			}
+			// follow the leader with the given offset
+			else {
+				auto heading = robots->get_target(0) - pt_0;
+				auto p = glm::normalize(heading) * offset;
+				p += robots->get_target(0);
+				robots->set_target(1, p.x, p.y);
+
+				heading = robots->get_target(1) - p;
+				p = glm::normalize(heading) * offset;
+				p += robots->get_target(1);
+				robots->set_target(2, p.x, p.y);
+
+				heading = robots->get_target(2) - p;
+				p = glm::normalize(heading) * offset;
+				p += robots->get_target(2);
+				robots->set_target(3, p.x, p.y);
+			}
+		}
+
 	}
 }
 
 void ofApp::draw_path(ofPolyline* path)
 {
 	ofPushStyle();
-	ofNoFill(); 
+	ofNoFill();
 	ofSetLineWidth(2);
 	ofSetColor(ofColor::magenta);
 	path->draw();
@@ -579,10 +693,10 @@ void ofApp::check_for_messages()
 		float bounds_x_min = zone_drawing.getTopLeft().x;
 		float bounds_x_max = zone_drawing.getBottomRight().x;
 		float bounds_y_min = zone_drawing.getBottomRight().y;
-		float bounds_y_max = zone_drawing.getTopLeft().y; 
+		float bounds_y_max = zone_drawing.getTopLeft().y;
 
 		// We received a normalized XY target in range {[0,1], [0,1]}
-		if (m.getAddress() == "/tgt_norm") {
+		if (m.getAddress() == "/drawing/tgt_norm") {
 			int i = m.getArgAsInt(0);
 			float x = m.getArgAsFloat(1);
 			float y = m.getArgAsFloat(2);
@@ -591,38 +705,59 @@ void ofApp::check_for_messages()
 			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			//cout << "x: " << x << ", y: " << y << endl;
-			//robots->set_target(0, x, y);
 			update_path(&path_drawing, glm::vec3(x, y, 0));
-			//if (path_drawing.getVertices().size() > 1) {
-			//	auto pt_0 = path_drawing.getPointAtPercent(0.0);
-			//	auto pt_1 = path_drawing.getPointAtPercent(0.33);
-			//	auto pt_2 = path_drawing.getPointAtPercent(0.66);
-			//	auto pt_3 = path_drawing.getPointAtPercent(1.0);
-
-			//	robots->set_target(3, pt_3.x, pt_3.y);
-			//	robots->set_target(2, pt_2.x, pt_2.y);
-			//	robots->set_target(1, pt_1.x, pt_1.y);
-			//	robots->set_target(0, pt_0.x, pt_0.y);
-			//}
 		}
 		else if (m.getAddress() == "/drawing/clear") {
 			path_drawing.clear();
+			for (auto path : drawing_paths)
+				path->clear();
+		}
+		else if (m.getAddress() == "/drawing/enable_follow") {
+			zone_drawing_follow.set(m.getArgAsBool(0));
+		}
+		else if (m.getAddress() == "/drawing/accuracy") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, zone_drawing_accuracy.getMin(), zone_drawing_accuracy.getMax());
+			zone_drawing_accuracy.set(val);
 		}
 		else if (m.getAddress() == "/drawing/num_pts") {
 			float val = m.getArgAsFloat(0); // normalized value between 0 and 1
 			int num_pts = int(ofMap(val, 0, 1, zone_drawing_length.getMin(), zone_drawing_length.getMax(), true));
 			zone_drawing_length.set(num_pts);
 		}
-		else if (m.getAddress() == "/values/label18/gamepad/stick_left_x") {
-			float x = stof(m.getArgAsString(0));
-			x = ofMap(x, -1, 1, bounds_x_min, bounds_x_max);
-			robots->set_target_x(0, x);
+		else if (m.getAddress() == "/drawing/follow_offset") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, zone_drawing_follow_offset.getMin(), zone_drawing_follow_offset.getMax());
+			zone_drawing_follow_offset.set(val);
 		}
-		else if (m.getAddress() == "/values/label20/gamepad/stick_left_y") {
-			float y = stof(m.getArgAsString(0));
-			y = ofMap(y, -1, 1, bounds_y_min, bounds_y_max);
-			robots->set_target_y(0, y);
+		else if (m.getAddress() == "/line/enable_follow") {
+			motion->motion_line_follow.set(m.getArgAsBool(0));
 		}
+		else if (m.getAddress() == "/line/length") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_line_length.getMin(), motion->motion_line_length.getMax());
+			motion->motion_line_length.set(val);
+		}
+		else if (m.getAddress() == "/line/reset") {
+			motion->on_motion_line_reset();
+		}
+		else if (m.getAddress() == "/line/theta") {
+			float val = ofMap(m.getArgAsFloat(0), -1, 1, motion->motion_line_theta.getMin(), motion->motion_line_theta.getMax());
+			motion->motion_line_theta.set(val);
+		}
+		else if (m.getAddress() == "/line/position") {
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->motion_line_pos.set(glm::vec3(x, y, 0));
+		}
+		else if (m.getAddress() == "/circle/rot") {
+			motion->rotate(m.getArgAsFloat(0));
+		}
+		else if (m.getAddress() == "/circle/scale") {
+			motion->scale(m.getArgAsFloat(0));
+		}
+
 		// We received an absolute XY target in range {[0,0], [bounds.min,bounds.max]}
 		else if (m.getAddress() == "/tgt_abs") {
 			//int i = m.getArgAsInt(0);
@@ -693,7 +828,6 @@ void ofApp::key_pressed_camera(int key)
 		break;
 	case '3':
 		// FRONT
-
 		//Camera pos: -1152.07, -1986.03, 4307.33, orient: 1, 0, 0, 0
 		cam.setGlobalPosition(-1152.07, -1986.03, 4307.33);// -1010.88, -1967.36, 3923.83);
 		cam.setGlobalOrientation(glm::quat(1, 0, 0, 0));

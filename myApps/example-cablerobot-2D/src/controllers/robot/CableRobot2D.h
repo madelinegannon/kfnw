@@ -76,6 +76,13 @@ public:
 	TimeSeriesPlot plot = TimeSeriesPlot(4);
 	vector<float> plot_data = { 0, 0, 0, 0 };
 
+	ofPolyline path;
+	void add_to_path(glm::vec3 pos);
+	void draw_path();
+
+	glm::vec3 estimated_target_actual;
+	glm::vec3 get_target_actual();
+
 
 	// GUI Listeners
 	void on_enable(bool& val);

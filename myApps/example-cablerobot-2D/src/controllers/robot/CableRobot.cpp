@@ -280,6 +280,7 @@ void CableRobot::load_config_from_file(string filename)
 			ofLogNotice(__FUNCTION__) << "\t\tBase Local Pos: " << ofToString(base.getPosition());
 			ofLogNotice(__FUNCTION__) << "\t\tTangent Local Pos: " << ofToString(tangent.getPosition());
 			ofLogNotice(__FUNCTION__) << "\t\tTarget Local Pos: " << ofToString(target.getPosition());
+			ofLogNotice(__FUNCTION__) << "\t\tTarget Global Pos: " << ofToString(target.getGlobalPosition());
 
 			// limits
 			vel_limit.set(config.getValue("config:limits:vel_limit", 0));

@@ -153,21 +153,39 @@ bool RobotController::initialize()
 				// Create each cable robot and set its world position
 				for (size_t j = 0; j < myPort.NodeCount(); j++) {
 					// Store each individual robot, no matter the configuration
-					robots.push_back(new CableRobot(*myMgr, &myPort.Nodes(j), this->load_robots_from_file));
-					if (system_config == Configuration::ONE_D) {
-						// configure for 1D application
-						robots.back()->configure(origin, bases[j]);
-						gizmos.push_back(robots.back()->get_gizmo());
-					}
-					else if (system_config == Configuration::TWO_D) {
-						// Make a 2D robot
-						if (j % 2 != 0) {
-							robots_2D.push_back(new CableRobot2D(robots[j - 1], robots[j], origin, bases[j - 1], bases[j], j / 2));
-							gizmos.push_back(robots_2D.back()->get_gizmo());
-						}
-					}
+					//if (j==0 || j==4)
+						robots.push_back(new CableRobot(*myMgr, &myPort.Nodes(j), this->load_robots_from_file));
+					//if (system_config == Configuration::ONE_D) {
+					//	// configure for 1D application
+					//	robots.back()->configure(origin, bases[j]);
+					//	gizmos.push_back(robots.back()->get_gizmo());
+					//}
+					//else if (system_config == Configuration::TWO_D) {
+					//	// Make a 2D robot
+					//	/*if (j % 2 != 0) {
+					//		robots_2D.push_back(new CableRobot2D(robots[j - 1], robots[j], origin, bases[j - 1], bases[j], j / 2));
+					//		gizmos.push_back(robots_2D.back()->get_gizmo());
+					//	}*/
+					//}
 				}
 			}
+
+
+
+			//if (j % 2 != 0) {
+				// CHANGE REAL WORLD POSITIONS IN THE COFIG FILE
+			for (int i = 0; i < 4; i++) {
+				robots_2D.push_back(new CableRobot2D(robots[i], robots[i+4], origin, bases[i], bases[i+4], 0));
+				gizmos.push_back(robots_2D.back()->get_gizmo());
+			}
+
+				//robots_2D.push_back(new CableRobot2D(robots[1], robots[5], origin, bases[2], bases[3], 1));
+				//gizmos.push_back(robots_2D.back()->get_gizmo());
+
+				//robots_2D.push_back(new CableRobot2D(robots[2], robots[3], origin, bases[4], bases[5], 2));
+				//gizmos.push_back(robots_2D.back()->get_gizmo());
+			//}
+
 			// update the gui
 			num_robots.set(ofToString(robots.size()));
 			sync_index.setMax(robots.size() - 1);
@@ -261,11 +279,8 @@ void RobotController::threadedFunction()
 				else if (system_config == Configuration::TWO_D) {
 					for (int i = 0; i < robots_2D.size(); i++) {
 						robots_2D[i]->update_gui(&panel);
-
-					}
-
-					robots_2D[0]->plot.name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
-					robots_2D[1]->plot.name = "Bot 2 RPM: Motor 3 (RED), Motor 4 (BLUE)";
+						robots_2D[i]->plot.name = "Bot 1 RPM: Motor 1 (RED), Motor 2 (BLUE)";
+					}					
 				}
 				// check if system is ready to move (all motors are homed)
 				check_for_system_ready();
@@ -500,12 +515,24 @@ void RobotController::set_origin(glm::vec3 pos, glm::quat orient)
 	origin->setGlobalOrientation(orient);
 }
 
+void RobotController::set_targets(vector<glm::vec3> targets)
+{
+	if (system_config == Configuration::TWO_D) {
+		for (int i = 0; i < robots_2D.size(); i++) {
+			ofNode node;
+			node.setPosition(targets[i]);
+			robots_2D[i]->get_gizmo()->setNode(node);
+		}
+	}
+}
+
+
 void RobotController::set_targets(vector<glm::vec3*> targets)
 {
 	if (system_config == Configuration::TWO_D) {
 		for (int i = 0; i < robots_2D.size(); i++) {
 			ofNode node;
-			node.setPosition(*targets[i]);
+			node.setPosition(*targets[i]);			
 			robots_2D[i]->get_gizmo()->setNode(node);
 		}
 	}
@@ -525,6 +552,21 @@ void RobotController::set_target(int i, float x, float y)
 	}
 }
 
+/**
+ * @brief Returns the *ROUGH ESTIMATE* of the end effector position (just the mid-point of the projected ends).
+ * 
+ * @param ()  i: 
+ * @return (glm::vec3)  
+ */
+glm::vec3 RobotController::get_target(int i) {
+	if (system_config == Configuration::TWO_D) {
+		if (i < robots_2D.size()) {
+			return robots_2D[i]->estimated_target_actual;
+		}
+	}
+	return glm::vec3();
+}
+
 void RobotController::set_target_x(int i, float x)
 {
 	if (i < robots_2D.size()) {
@@ -539,6 +581,15 @@ void RobotController::set_target_y(int i, float y)
 		auto pos = robots_2D[i]->get_gizmo()->getTranslation();
 		set_target(i, pos.x, y);
 	}
+}
+
+vector<glm::vec3> RobotController::get_targets()
+{
+	vector<glm::vec3> tgts;
+	for (int i = 0; i < robots_2D.size(); i++) {
+		tgts.push_back(get_target(i));
+	}
+	return tgts;
 }
 
 void RobotController::update_gizmos()

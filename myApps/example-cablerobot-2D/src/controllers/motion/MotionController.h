@@ -39,6 +39,11 @@ public:
 
 	vector<glm::vec3*> get_targets();
 
+	void rotate(float theta);
+	float rotation_theta = 0;
+	void scale(float scalar);
+	float scalar_percent = 1;
+
 
 	ofxPanel panel;
 	ofParameterGroup params;
@@ -50,6 +55,26 @@ public:
 	ofParameter<float> duration;
 	ofParameter<bool> play;
 	ofParameter<void> reset;
+
+	ofParameterGroup params_motion_line;
+	float motion_line_rotation = 0;
+	ofParameter<glm::vec3> motion_line_pos;
+	ofParameter<float> motion_line_length = 2000;
+	ofParameter<float> motion_line_theta = 0;
+	ofParameter<bool> motion_line_follow = false;
+	ofParameter<void> motion_line_reset;
+
+	void rotate(ofPolyline* path, float theta);
+
+	void on_motion_line_pos_changed(glm::vec3& val);
+	void on_motion_line_length_changed(float& val);
+	void on_motion_line_theta_changed(float& val);
+	void on_motion_line_reset();
+
+	ofPolyline motion_line;
+	void setup_motion_line();
+	void draw_motion_line();
+	void update_motion_line();
 
 	void on_play(bool& val);
 	void on_pos_changed(glm::vec3& val);
