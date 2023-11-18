@@ -57,8 +57,6 @@ public:
 	ofParameter<void> reset;
 
 	ofParameterGroup params_motion;
-	ofParameterGroup params_motion_line;
-	float motion_line_rotation = 0;
 	ofParameter<glm::vec3> motion_pos;
 	glm::vec3 motion_pos_prev = glm::vec3();
 	ofParameter<float> motion_line_length = 2000;
@@ -69,6 +67,15 @@ public:
 	ofParameter<void> motion_reset;
 	ofParameter<bool> motion_spin_enable = false;
 	ofParameter<float> motion_spin_speed = 0;
+
+	ofParameterGroup params_motion_drawing;
+	ofParameter<float> motion_drawing_offset = 150;
+	ofParameter<float> motion_drawing_accuracy = 50;
+	ofParameter<float> motion_drawing_length_max = 500;
+
+	ofParameterGroup params_motion_line;
+	float motion_line_rotation = 0;
+
 	ofParameterGroup params_motion_circle;
 	ofParameter<float> motion_circle_radius = 1000;
 	ofParameter<float> motion_circle_angle_start = 0;

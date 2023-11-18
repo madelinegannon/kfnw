@@ -552,14 +552,14 @@ void ofApp::update_path(ofPolyline* path, glm::vec3 pt)
 		}
 	}
 	// cap the length of the path
-	if (path->getVertices().size() > zone_drawing_length.get()) {
-		//path->removeVertex(0);
+	if (path->getVertices().size() > motion->motion_drawing_length_max.get()) {
+		path->removeVertex(0);
 	}
 
 	// move the robots
 	if (path->getVertices().size() > 2) {	// POLYLINE MUST HAVE AT LEAST 3 POINTS, OTHERWISE SENDS TO (0,0,0)
 
-		float dist_thresh = zone_drawing_accuracy.get();
+		float dist_thresh = motion->motion_drawing_accuracy.get();// zone_drawing_accuracy.get();
 
 		auto pt_0 = path->getPointAtPercent(0.0);
 		auto pt_1 = robots->get_target(0);// path_drawing.getPointAtPercent(0.33);
@@ -704,16 +704,61 @@ void ofApp::check_for_messages()
 			robots->move_vel_all(m.getArgAsBool(0));
 		}
 		// We received a normalized XY target in range {[0,1], [0,1]}
+		// Move all the Robots
 		else if (m.getAddress() == "/drawing/tgt_norm") {
-			int i = m.getArgAsInt(0);
-			float x = m.getArgAsFloat(1);
-			float y = m.getArgAsFloat(2);
+			//int i = m.getArgAsInt(0);
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
 
 			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
 			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			//cout << "x: " << x << ", y: " << y << endl;
 			update_path(&path_drawing, glm::vec3(x, y, 0));
+		}
+		// Add to Robot 0 Path
+		else if (m.getAddress() == "/drawing/0/tgt_norm") {
+			cout << "move robot 0" << endl;
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			//update_path(&path_drawing, glm::vec3(x, y, 0));
+		}
+		// Add to Robot 1 Path
+		else if (m.getAddress() == "/drawing/1/tgt_norm") {
+			cout << "move robot 1" << endl;
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			//update_path(&path_drawing, glm::vec3(x, y, 0));
+		}
+		// Add to Robot 2 Path
+		else if (m.getAddress() == "/drawing/2/tgt_norm") {
+			cout << "move robot 2" << endl;
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			//update_path(&path_drawing, glm::vec3(x, y, 0));
+		}
+		// Add to Robot 3 Path
+		else if (m.getAddress() == "/drawing/3/tgt_norm") {
+			cout << "move robot 3" << endl;
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			//update_path(&path_drawing, glm::vec3(x, y, 0));
 		}
 		else if (m.getAddress() == "/drawing/clear") {
 			path_drawing.clear();
@@ -725,17 +770,20 @@ void ofApp::check_for_messages()
 			motion->motion_drawing_follow.set(m.getArgAsBool(0));
 		}
 		else if (m.getAddress() == "/drawing/accuracy") {
-			float val = ofMap(m.getArgAsFloat(0), 0, 1, zone_drawing_accuracy.getMin(), zone_drawing_accuracy.getMax());
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_drawing_accuracy.getMin(), motion->motion_drawing_accuracy.getMax());
 			zone_drawing_accuracy.set(val);
+			motion->motion_drawing_accuracy.set(val);
 		}
 		else if (m.getAddress() == "/drawing/num_pts") {
-			float val = m.getArgAsFloat(0); // normalized value between 0 and 1
-			int num_pts = int(ofMap(val, 0, 1, zone_drawing_length.getMin(), zone_drawing_length.getMax(), true));
-			zone_drawing_length.set(num_pts);
+			//float val =; // normalized value between 0 and 1
+			int val = int(ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_drawing_length_max.getMin(), motion->motion_drawing_length_max.getMax(), true));
+			zone_drawing_length.set(val);
+			motion->motion_drawing_length_max.set(val);
 		}
 		else if (m.getAddress() == "/drawing/follow_offset") {
-			float val = ofMap(m.getArgAsFloat(0), 0, 1, zone_drawing_follow_offset.getMin(), zone_drawing_follow_offset.getMax());
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_drawing_offset.getMin(), motion->motion_drawing_offset.getMax());
 			zone_drawing_follow_offset.set(val);
+			motion->motion_drawing_offset.set(val);
 		}
 		else if (m.getAddress() == "/line/enable_follow") {
 			motion->motion_line_follow.set(m.getArgAsBool(0));
@@ -777,7 +825,7 @@ void ofApp::check_for_messages()
 			motion->motion_line.getVertices()[0].x = x;
 			motion->motion_line.getVertices()[0].y = y;
 			motion->calculate_theta(motion->motion_line);
-			//motion->motion_pos.set(motion->motion_line.getCentroid2D());
+			//motion->motion_pos.set(motion->motion_line.getCentroid2D());	// <-- not working
 		}
 		else if (m.getAddress() == "/line/end") {
 			float x = m.getArgAsFloat(0);
@@ -789,14 +837,8 @@ void ofApp::check_for_messages()
 			motion->motion_line.getVertices()[1].x = x;
 			motion->motion_line.getVertices()[1].y = y;
 			motion->calculate_theta(motion->motion_line);
-			//motion->motion_pos.set(motion->motion_line.getCentroid2D());
+			//motion->motion_pos.set(motion->motion_line.getCentroid2D());	// <-- not working
 		}
-		//else if (m.getAddress() == "/circle/rot") {
-		//	motion->rotate(m.getArgAsFloat(0));
-		//}
-		//else if (m.getAddress() == "/circle/scale") {
-		//	motion->scale(m.getArgAsFloat(0));
-		//}
 		else if (m.getAddress() == "/circle/enable_follow") {
 			motion->motion_circle_follow.set(m.getArgAsBool(0));
 		}
@@ -829,16 +871,16 @@ void ofApp::check_for_messages()
 		}
 
 		// We received an absolute XY target in range {[0,0], [bounds.min,bounds.max]}
-		else if (m.getAddress() == "/tgt_abs") {
-			//int i = m.getArgAsInt(0);
-			float x = m.getArgAsFloat(0);
-			float y = m.getArgAsFloat(1);
+		//else if (m.getAddress() == "/tgt_abs") {
+		//	//int i = m.getArgAsInt(0);
+		//	float x = m.getArgAsFloat(0);
+		//	float y = m.getArgAsFloat(1);
 
-			// just check the first set of robots
-			//if (i == 0) {
-			robots->set_target(0, x, y);
-			//}
-		}
+		//	// just check the first set of robots
+		//	//if (i == 0) {
+		//	robots->set_target(0, x, y);
+		//	//}
+		//}
 		else {
 			// unrecognized message: display on the bottom of the screen
 			string msgString;

@@ -490,6 +490,11 @@ void MotionController::setup_gui()
 	motion_pos_prev.x = motion_pos.get().x;
 	motion_pos_prev.y = motion_pos.get().y;
 
+	params_motion_drawing.setName("Drawing");
+	params_motion_drawing.add(motion_drawing_offset.set("Follow_Offset", 50, 0, 1000));
+	params_motion_drawing.add(motion_drawing_accuracy.set("Accuracy", 50, 10, 100));
+	params_motion_drawing.add(motion_drawing_length_max.set("Length_Max", 250, 0, 500));
+
 	params_motion_line.setName("Line");
 	params_motion_line.add(motion_line_length.set("Length", 2000, 2, 3000));
 
@@ -511,6 +516,7 @@ void MotionController::setup_gui()
 	motion_circle_angle_end.addListener(this, &MotionController::on_motion_circle_angle_end);
 	motion_circle_radius.addListener(this, &MotionController::on_motion_circle_radius);
 
+	params_motion.add(params_motion_drawing);
 	params_motion.add(params_motion_line);
 	params_motion.add(params_motion_circle);
 
