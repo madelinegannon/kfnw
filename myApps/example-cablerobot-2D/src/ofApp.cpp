@@ -75,59 +75,63 @@ void ofApp::update() {
 	if (osc_status.get() == "CONNECTED") {
 		check_for_messages();
 	}
+
+	// handle the master drawing all robots should follow first
 	if (path_drawing.getVertices().size()) {// > zone_drawing_length.get()) {
 		update_path(&path_drawing, path_drawing.getVertices().back());
 	}
-
-	motion->update();
-	//agents->set_targets(motion->get_targets());
-	//agents->update();
-	////agents->update(robots->get_targets()); // <-- NOT WORKING
-
-	//if (motion->play.get()) {
-	//	//auto agent_targets = agents->get_trail_targets();
-	//	//if (agent_targets.size() > 0) {
-	//	//	robots->set_targets(agent_targets);
-	//	//}
-	//	//else {
-	//	//	robots->set_targets(motion->get_targets());
-	//	//}
-	//	robots->set_targets(motion->get_targets());
-	//}
-	////else {
-
-	////	// send the robot targets to the sensor path
-	////	if (path_sensor.getVertices().size() > 0) {
-	////		vector<glm::vec3*> tgts;
-	////		auto pt = path_sensor.getVertices().back();
-	////		float offset_z = -140;
-	////		tgts.push_back(new glm::vec3(pt.x, pt.y, 0));
-	////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 1));
-	////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 2));
-	////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 3));
-	////		robots->set_targets(tgts);
-	////	}
-	////}
-
-	// Testing moving drawing path into motion controller
-	if (motion->motion_drawing_follow) {
-		if (robots->get_targets().size() == motion->get_targets().size()) {
-			motion->update_targets(robots->get_actual_positions());
-			robots->set_targets(motion->get_targets());
-		}
-		else {
-			//ofLogError(__FUNCTION__) << "Robots and MotionTargets do not match! There are " << robots->get_targets().size() << " robots and " << motion->get_targets().size() << " motion targets.";
-			robots->set_targets(motion->get_targets());
-		}
-	}
+	// handle geometric and individual movements second
 	else {
+		//agents->set_targets(motion->get_targets());
+		//agents->update();
+		////agents->update(robots->get_targets()); // <-- NOT WORKING
+
+		//if (motion->play.get()) {
+		//	//auto agent_targets = agents->get_trail_targets();
+		//	//if (agent_targets.size() > 0) {
+		//	//	robots->set_targets(agent_targets);
+		//	//}
+		//	//else {
+		//	//	robots->set_targets(motion->get_targets());
+		//	//}
+		//	robots->set_targets(motion->get_targets());
+		//}
+		////else {
+
+		////	// send the robot targets to the sensor path
+		////	if (path_sensor.getVertices().size() > 0) {
+		////		vector<glm::vec3*> tgts;
+		////		auto pt = path_sensor.getVertices().back();
+		////		float offset_z = -140;
+		////		tgts.push_back(new glm::vec3(pt.x, pt.y, 0));
+		////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 1));
+		////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 2));
+		////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 3));
+		////		robots->set_targets(tgts);
+		////	}
+		////}
+
+		// Testing moving drawing path into motion controller
+		motion->update();
+		if (motion->motion_drawing_follow) {
+			if (robots->get_targets().size() == motion->get_targets().size()) {
+				motion->update_targets(robots->get_actual_positions());
+				//robots->set_targets(motion->get_targets());
+			}
+			else {
+				//ofLogError(__FUNCTION__) << "Robots and MotionTargets do not match! There are " << robots->get_targets().size() << " robots and " << motion->get_targets().size() << " motion targets.";
+			}
+		}
 		robots->set_targets(motion->get_targets());
+		//else if (!motion->motion_drawing_follow) {
+		//	robots->set_targets(motion->get_targets());
+		//}
+
+
+		// disable tha camera if we are interacting with a gizmo
+		// @NOTE 8/18/2023: this is doing it by itself for some reason
+		//disable_camera(robots->disable_camera());
 	}
-
-
-	// disable tha camera if we are interacting with a gizmo
-	// @NOTE 8/18/2023: this is doing it by itself for some reason
-	//disable_camera(robots->disable_camera());
 }
 
 void ofApp::draw()
@@ -736,7 +740,7 @@ void ofApp::check_for_messages()
 		}
 		// Add to Robot 0 Path
 		else if (m.getAddress() == "/drawing/0/tgt_norm") {
-			cout << "move robot 0" << endl;
+			//cout << "move robot 0" << endl;
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
@@ -751,7 +755,7 @@ void ofApp::check_for_messages()
 		}
 		// Add to Robot 1 Path
 		else if (m.getAddress() == "/drawing/1/tgt_norm") {
-			cout << "move robot 1" << endl;
+			//cout << "move robot 1" << endl;
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
@@ -767,23 +771,7 @@ void ofApp::check_for_messages()
 		}
 		// Add to Robot 2 Path
 		else if (m.getAddress() == "/drawing/2/tgt_norm") {
-			cout << "move robot 2" << endl;
-			float x = m.getArgAsFloat(0);
-			float y = m.getArgAsFloat(1);
-
-			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
-			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
-
-			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
-
-			motion->add_to_path(3, glm::vec3(x, y, 0));
-
-			//update_path(&path_drawing, glm::vec3(x, y, 0));
-		}
-		// Add to Robot 3 Path
-		else if (m.getAddress() == "/drawing/3/tgt_norm") {
-			cout << "move robot 3" << endl;
+			//cout << "move robot 2" << endl;
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
@@ -794,6 +782,22 @@ void ofApp::check_for_messages()
 			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			motion->add_to_path(2, glm::vec3(x, y, 0));
+
+			//update_path(&path_drawing, glm::vec3(x, y, 0));
+		}
+		// Add to Robot 3 Path
+		else if (m.getAddress() == "/drawing/3/tgt_norm") {
+			//cout << "move robot 3" << endl;
+			float x = m.getArgAsFloat(0);
+			float y = m.getArgAsFloat(1);
+
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->add_to_path(3, glm::vec3(x, y, 0));
 
 			//update_path(&path_drawing, glm::vec3(x, y, 0));
 		}
@@ -824,7 +828,15 @@ void ofApp::check_for_messages()
 			motion->motion_drawing_offset.set(val);
 		}
 		else if (m.getAddress() == "/line/enable_follow") {
-			motion->motion_line_follow.set(m.getArgAsBool(0));
+			bool val = m.getArgAsBool(0);
+			if (val) {
+				// clear any drawing paths
+				path_drawing.clear();
+				for (auto path : drawing_paths)
+					path->clear();
+				motion->clear_paths();
+			}
+			motion->motion_line_follow.set(val);
 		}
 		else if (m.getAddress() == "/line/length") {
 			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_line_length.getMin(), motion->motion_line_length.getMax());
@@ -898,7 +910,15 @@ void ofApp::check_for_messages()
 			//motion->motion_pos.set(motion->motion_line.getCentroid2D());	// <-- not working
 		}
 		else if (m.getAddress() == "/circle/enable_follow") {
-			motion->motion_circle_follow.set(m.getArgAsBool(0));
+			bool val = m.getArgAsBool(0);
+			if (val) {
+				// clear any drawing paths
+				path_drawing.clear();
+				for (auto path : drawing_paths)
+					path->clear();
+				motion->clear_paths();
+			}
+			motion->motion_circle_follow.set(val);
 		}
 		else if (m.getAddress() == "/circle/radius") {
 			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_circle_radius.getMin(), motion->motion_circle_radius.getMax());

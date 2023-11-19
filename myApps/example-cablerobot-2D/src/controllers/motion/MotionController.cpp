@@ -16,8 +16,12 @@ MotionController::MotionController()
 	}
 
 	// add a reference to each path's target
-	for (auto& path : paths) {
-		targets.push_back(&path.target);
+	//for (auto& path : paths) {
+	//	targets.push_back(&path.target);
+	//}
+
+	for (int i = 0; i < 4; i++) {
+		targets.push_back(new glm::vec3(0,0, (i * offset_z)));
 	}
 
 	setup_motion_line();
@@ -46,10 +50,15 @@ MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, flo
 		paths.push_back(create_polygon(n, radius.get(), resolution.get(), offset_theta.get()));
 	}
 
-	// add a reference to each path's target
-	for (auto& path : paths) {
-		targets.push_back(&path.target);
+	//// add a reference to each path's target
+	//for (auto& path : paths) {
+	//	targets.push_back(&path.target);
+	//}
+
+	for (int i = 0; i < 4; i++) {
+		targets.push_back(new glm::vec3(0, 0, (i * offset_z)));
 	}
+
 	setup_motion_line();
 	setup_motion_circle();
 	setup_paths();
@@ -82,37 +91,66 @@ void MotionController::update()
 		//	}
 		//}
 
-		for (int i = 0; i < paths.size(); i++) {
-			// follow the can-can line
-			if (motion_line_follow || motion_circle_follow) {
+	if (motion_line_follow || motion_circle_follow) {
 
-				if (motion_spin_enable) {
-					motion_theta += motion_spin_speed;
-					//calculate_theta(motion_line);
-					if (motion_theta > 180) {
-						motion_theta = -180;
-						motion_line_rotation = motion_theta;
-					}
-				}
-
-				float t = 0;
-				if (paths.size() > 1)
-					t = (i * 1.0) / (paths.size() - 1);
-				if (motion_line_follow)
-					paths[i].target = motion_line.getPointAtPercent(t);
-				else if (motion_circle_follow)
-					paths[i].target = motion_circle.getPointAtPercent(t);
-			}
-			else{
-				//// update the time-based targets
-				//paths[i].target = paths[i].path.getPointAtPercent(evaluate_percent);
+		if (motion_spin_enable) {
+			motion_theta += motion_spin_speed;
+			//calculate_theta(motion_line);
+			if (motion_theta > 180) {
+				motion_theta = -180;
+				motion_line_rotation = motion_theta;
 			}
 		}
-	//}
 
-	if (motion_drawing_follow) {
-		update_paths();
+		for (int i = 0; i < targets.size(); i++) {
+			float t = (i * 1.0) / (targets.size() - 1);
+			if (motion_line_follow) {
+				targets[i]->x = motion_line.getPointAtPercent(t).x;
+				targets[i]->y = motion_line.getPointAtPercent(t).y;
+			}
+			else if (motion_circle_follow) {
+				//targets[i] = &motion_circle.getPointAtPercent(t);
+				targets[i]->x = motion_circle.getPointAtPercent(t).x;
+				targets[i]->y = motion_circle.getPointAtPercent(t).y;
+			}
+		}
 	}
+
+	//for (int i = 0; i < paths.size(); i++) {
+	//	// follow the can-can line
+	//	if (motion_line_follow || motion_circle_follow) {
+
+	//		if (motion_spin_enable) {
+	//			motion_theta += motion_spin_speed;
+	//			//calculate_theta(motion_line);
+	//			if (motion_theta > 180) {
+	//				motion_theta = -180;
+	//				motion_line_rotation = motion_theta;
+	//			}
+	//		}
+
+	//		float t = 0;
+	//		if (paths.size() > 1)
+	//			t = (i * 1.0) / (paths.size() - 1);
+	//		if (motion_line_follow) {
+	//			paths[i].target = motion_line.getPointAtPercent(t);
+	//			targets[i] = &motion_line.getPointAtPercent(t);
+	//		}
+	//		else if (motion_circle_follow) {
+	//			paths[i].target = motion_circle.getPointAtPercent(t);
+	//			targets[i] = &motion_circle.getPointAtPercent(t);
+	//		}
+	//	}
+	//	else {
+	//		//// update the time-based targets
+	//		//paths[i].target = paths[i].path.getPointAtPercent(evaluate_percent);
+	//	}
+	//}
+	////}
+
+	////if (motion_drawing_follow) {
+	////	update_paths();
+	////}
 
 }
 
@@ -287,11 +325,13 @@ void MotionController::update_targets(vector<glm::vec3> actual)
 		auto path = paths_drawing[i];
 		if (path->getVertices().size() > 2) {	// <--- POLYLINE MUST HAVE AT LEAST 3 POINTS, OTHERWISE SENDS TO (0,0,0)
 			float dist_thresh = motion_drawing_accuracy.get();
-			float dist_sq = glm::distance2(path->getVertices()[0], actual[i]);
+			glm::vec2 pt_0 = glm::vec2(path->getVertices()[0].x, path->getVertices()[0].y);
+			glm::vec2 pt_1 = glm::vec2(actual[i].x, actual[i].y);
+			float dist_sq = glm::distance2(pt_0, pt_1);
 			if (dist_sq < dist_thresh * dist_thresh) {
 				path->removeVertex(0);
-				targets[i] = &path->getPointAtPercent(0);
 			}
+			targets[i] = &path->getVertices()[0];
 		}
 	}
 }
