@@ -13,7 +13,6 @@ private:
 	vector<glm::vec3> bases;
 
 	ofPolyline path;
-	ofNode centroid;
 	float offset_z = -75;
 
 	void setup_gui();
@@ -37,12 +36,24 @@ public:
 	void draw_gui();
     void keyPressed(int key);
 
+	ofNode centroid;
 	vector<glm::vec3*> get_targets();
 
 	void rotate(float theta);
 	float rotation_theta = 0;
 	void scale(float scalar);
 	float scalar_percent = 1;
+
+	vector<ofPolyline*> paths_drawing;
+	void setup_paths(int count=4);
+	void update_paths();
+	void draw_paths();
+	void add_to_path(int i, glm::vec3 pt);
+	void update_targets(vector<glm::vec3> actual);
+
+	void update_path(ofPolyline* path, glm::vec3 pt);
+	void clear_paths();
+	void draw_path(ofPolyline* path);
 
 
 	ofxPanel panel;
@@ -89,6 +100,8 @@ public:
 	void on_motion_circle_angle_end(float& val);
 
 	void rotate(ofPolyline* path, float theta);
+	void rotateLine(ofPolyline* path, float theta);
+	void rotateCircle(ofPolyline* path, float theta);
 
 	void on_motion_pos_changed(glm::vec3& val);
 	void on_motion_line_length_changed(float& val);

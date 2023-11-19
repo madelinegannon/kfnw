@@ -84,31 +84,46 @@ void ofApp::update() {
 	//agents->update();
 	////agents->update(robots->get_targets()); // <-- NOT WORKING
 
-	if (motion->play.get()) {
-		//auto agent_targets = agents->get_trail_targets();
-		//if (agent_targets.size() > 0) {
-		//	robots->set_targets(agent_targets);
-		//}
-		//else {
-		//	robots->set_targets(motion->get_targets());
-		//}
+	//if (motion->play.get()) {
+	//	//auto agent_targets = agents->get_trail_targets();
+	//	//if (agent_targets.size() > 0) {
+	//	//	robots->set_targets(agent_targets);
+	//	//}
+	//	//else {
+	//	//	robots->set_targets(motion->get_targets());
+	//	//}
+	//	robots->set_targets(motion->get_targets());
+	//}
+	////else {
+
+	////	// send the robot targets to the sensor path
+	////	if (path_sensor.getVertices().size() > 0) {
+	////		vector<glm::vec3*> tgts;
+	////		auto pt = path_sensor.getVertices().back();
+	////		float offset_z = -140;
+	////		tgts.push_back(new glm::vec3(pt.x, pt.y, 0));
+	////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 1));
+	////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 2));
+	////		tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 3));
+	////		robots->set_targets(tgts);
+	////	}
+	////}
+
+	// Testing moving drawing path into motion controller
+	if (motion->motion_drawing_follow) {
+		if (robots->get_targets().size() == motion->get_targets().size()) {
+			motion->update_targets(robots->get_actual_positions());
+			robots->set_targets(motion->get_targets());
+		}
+		else {
+			//ofLogError(__FUNCTION__) << "Robots and MotionTargets do not match! There are " << robots->get_targets().size() << " robots and " << motion->get_targets().size() << " motion targets.";
+			robots->set_targets(motion->get_targets());
+		}
+	}
+	else {
 		robots->set_targets(motion->get_targets());
 	}
 
-	else {
-
-		// send the robot targets to the sensor path
-		if (path_sensor.getVertices().size() > 0) {
-			vector<glm::vec3*> tgts;
-			auto pt = path_sensor.getVertices().back();
-			float offset_z = -140;
-			tgts.push_back(new glm::vec3(pt.x, pt.y, 0));
-			tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 1));
-			tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 2));
-			tgts.push_back(new glm::vec3(pt.x, pt.y, offset_z * 3));
-			robots->set_targets(tgts);
-		}
-	}
 
 	// disable tha camera if we are interacting with a gizmo
 	// @NOTE 8/18/2023: this is doing it by itself for some reason
@@ -160,7 +175,7 @@ void ofApp::draw()
 	robots->draw();
 
 	// draw the agents
-	agents->draw();
+	//agents->draw();
 
 	// draw all the gizmos
 	for (auto gizmo : robots->get_gizmos())
@@ -698,7 +713,7 @@ void ofApp::check_for_messages()
 		if (m.getAddress() == "/stop") {
 			// stop all the cablebots (same as pressing SPACEBAR)
 			robots->pause();
-		}		
+		}
 		else if (m.getAddress() == "/move") {
 			// turn on move_vel for all the cablebots
 			robots->move_vel_all(m.getArgAsBool(0));
@@ -710,8 +725,11 @@ void ofApp::check_for_messages()
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			//cout << "x: " << x << ", y: " << y << endl;
 			update_path(&path_drawing, glm::vec3(x, y, 0));
@@ -722,9 +740,13 @@ void ofApp::check_for_messages()
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
 
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->add_to_path(0, glm::vec3(x, y, 0));
 			//update_path(&path_drawing, glm::vec3(x, y, 0));
 		}
 		// Add to Robot 1 Path
@@ -733,8 +755,13 @@ void ofApp::check_for_messages()
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->add_to_path(1, glm::vec3(x, y, 0));
 
 			//update_path(&path_drawing, glm::vec3(x, y, 0));
 		}
@@ -744,8 +771,13 @@ void ofApp::check_for_messages()
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->add_to_path(3, glm::vec3(x, y, 0));
 
 			//update_path(&path_drawing, glm::vec3(x, y, 0));
 		}
@@ -755,8 +787,13 @@ void ofApp::check_for_messages()
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+
+			motion->add_to_path(2, glm::vec3(x, y, 0));
 
 			//update_path(&path_drawing, glm::vec3(x, y, 0));
 		}
@@ -764,6 +801,7 @@ void ofApp::check_for_messages()
 			path_drawing.clear();
 			for (auto path : drawing_paths)
 				path->clear();
+			motion->clear_paths();
 		}
 		else if (m.getAddress() == "/drawing/enable_follow") {
 			zone_drawing_follow.set(m.getArgAsBool(0));
@@ -810,33 +848,53 @@ void ofApp::check_for_messages()
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			motion->motion_pos.set(glm::vec3(x, y, 0));
+			//motion->centroid.setGlobalPosition(motion->motion_pos);
 		}
 		else if (m.getAddress() == "/line/start") {
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			motion->motion_line.getVertices()[0].x = x;
 			motion->motion_line.getVertices()[0].y = y;
-			motion->calculate_theta(motion->motion_line);
+			//motion->calculate_theta(motion->motion_line);
+			motion->centroid.setGlobalPosition((motion->motion_line.getVertices()[0] + motion->motion_line.getVertices()[1]) / 2);
+
+			motion->motion_pos_prev = motion->centroid.getGlobalPosition();
+			motion->motion_pos.set(motion->centroid.getGlobalPosition());
+
 			//motion->motion_pos.set(motion->motion_line.getCentroid2D());	// <-- not working
 		}
 		else if (m.getAddress() == "/line/end") {
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			motion->motion_line.getVertices()[1].x = x;
 			motion->motion_line.getVertices()[1].y = y;
-			motion->calculate_theta(motion->motion_line);
+			//motion->calculate_theta(motion->motion_line);
+
+			motion->centroid.setGlobalPosition((motion->motion_line.getVertices()[0] + motion->motion_line.getVertices()[1]) / 2);
+			motion->motion_pos_prev = motion->centroid.getGlobalPosition();
+			motion->motion_pos.set(motion->centroid.getGlobalPosition());
+
 			//motion->motion_pos.set(motion->motion_line.getCentroid2D());	// <-- not working
 		}
 		else if (m.getAddress() == "/circle/enable_follow") {
@@ -854,10 +912,20 @@ void ofApp::check_for_messages()
 			float x = m.getArgAsFloat(0);
 			float y = m.getArgAsFloat(1);
 
-			x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
-			y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
+			x = ofMap(x, 0, 1, zone_drawing.getMinX(), zone_drawing.getMaxX());
+			y = ofMap(y, 0, 1, zone_drawing.getMaxY(), zone_drawing.getMinY());
+
+			//x = ofMap(x, 0, 1, bounds_x_min, bounds_x_max);
+			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			motion->motion_pos.set(glm::vec3(x, y, 0));
+		}
+		else if (m.getAddress() == "/circle/spin") {
+			motion->motion_spin_enable.set(m.getArgAsBool(0));
+		}
+		else if (m.getAddress() == "/circle/spin_speed") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_spin_speed.getMin(), motion->motion_spin_speed.getMax());
+			motion->motion_spin_speed.set(val);
 		}
 		else if (m.getAddress() == "/circle/reset") {
 			motion->on_motion_reset();

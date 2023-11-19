@@ -104,6 +104,7 @@ public:
     void set_target_y(int i, float y);
     glm::vec3 get_target(int i);
     vector<glm::vec3> get_targets();
+    vector<glm::vec3> get_actual_positions();
 
     ofxPanel panel;
     ofParameter<string> status;

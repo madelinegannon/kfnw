@@ -597,6 +597,17 @@ void RobotController::set_target_y(int i, float y)
 	}
 }
 
+/**
+ * @brief Returns the estimated actual 2D positions of the robot's end effector.
+ * 
+ * @return (vector<glm::vec3>)  
+ */
+vector<glm::vec3> RobotController::get_actual_positions()
+{
+	return get_targets();
+}
+
+
 vector<glm::vec3> RobotController::get_targets()
 {
 	vector<glm::vec3> tgts;

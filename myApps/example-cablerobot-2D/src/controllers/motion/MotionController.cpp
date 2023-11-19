@@ -22,6 +22,7 @@ MotionController::MotionController()
 
 	setup_motion_line();
 	setup_motion_circle();
+	setup_paths();
 }
 
 MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, float offset_z)
@@ -51,6 +52,7 @@ MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, flo
 	}
 	setup_motion_line();
 	setup_motion_circle();
+	setup_paths();
 }
 
 //--------------------------------------------------------------
@@ -66,41 +68,50 @@ void MotionController::setup()
 //--------------------------------------------------------------
 void MotionController::update()
 {
-	if (play.get()) {
-		// wrap around once we've hit 100%
+	//if (play.get()) {
+		//// wrap around once we've hit 100%
 
-		if (paths[0].path_type == PATH_TYPE::POLYGON) {
-			evaluate_percent += speed.get();
-			if (evaluate_percent >= 1.0) evaluate_percent = evaluate_percent - 1.0;
-		}
-		else if (paths[0].path_type == PATH_TYPE::LINE) {
-			float time_diff = ofGetElapsedTimef() - timer_start;
-			if (time_diff <= duration.get()) {
-				evaluate_percent = ofMap(time_diff, 0, duration.get(), 0, 1, true);
-			}
-		}
+		//if (paths[0].path_type == PATH_TYPE::POLYGON) {
+		//	evaluate_percent += speed.get();
+		//	if (evaluate_percent >= 1.0) evaluate_percent = evaluate_percent - 1.0;
+		//}
+		//else if (paths[0].path_type == PATH_TYPE::LINE) {
+		//	float time_diff = ofGetElapsedTimef() - timer_start;
+		//	if (time_diff <= duration.get()) {
+		//		evaluate_percent = ofMap(time_diff, 0, duration.get(), 0, 1, true);
+		//	}
+		//}
 
 		for (int i = 0; i < paths.size(); i++) {
 			// follow the can-can line
-			if (motion_line_follow) {
+			if (motion_line_follow || motion_circle_follow) {
 
 				if (motion_spin_enable) {
 					motion_theta += motion_spin_speed;
-					//if (motion_theta > 180)
-					//	motion_theta = 0;
-					calculate_theta(motion_line);
+					//calculate_theta(motion_line);
+					if (motion_theta > 180) {
+						motion_theta = -180;
+						motion_line_rotation = motion_theta;
+					}
 				}
 
 				float t = 0;
 				if (paths.size() > 1)
 					t = (i * 1.0) / (paths.size() - 1);
-				paths[i].target = motion_line.getPointAtPercent(t);
+				if (motion_line_follow)
+					paths[i].target = motion_line.getPointAtPercent(t);
+				else if (motion_circle_follow)
+					paths[i].target = motion_circle.getPointAtPercent(t);
 			}
-			else {
-				// update the time-based targets
-				paths[i].target = paths[i].path.getPointAtPercent(evaluate_percent);
+			else{
+				//// update the time-based targets
+				//paths[i].target = paths[i].path.getPointAtPercent(evaluate_percent);
 			}
 		}
+	//}
+
+	if (motion_drawing_follow) {
+		update_paths();
 	}
 
 }
@@ -117,6 +128,10 @@ void MotionController::draw()
 	}
 	else if (motion_circle_follow) {
 		draw_motion_circle();
+	}
+
+	if (motion_drawing_follow) {
+		draw_paths();
 	}
 }
 
@@ -174,6 +189,113 @@ void MotionController::scale(float scalar)
 	}
 }
 
+void MotionController::setup_paths(int count)
+{
+	for (int i = 0; i < count; i++) {
+		paths_drawing.push_back(new ofPolyline());
+	}
+}
+
+void MotionController::update_paths()
+{
+	for (int i = 0; i < paths_drawing.size(); i++) {
+		auto path = paths_drawing[i];
+		// cap the length of the path
+		if (path->getVertices().size() > motion_drawing_length_max.get()) {
+			path->removeVertex(0);
+		}
+	}
+}
+
+void MotionController::draw_paths()
+{
+	ofColor color;
+	for (int i = 0; i < paths_drawing.size(); i++) {
+
+		// Set the color
+		switch (i) {
+		case 0:
+			color = ofColor::floralWhite;
+			break;
+		case 1:
+			color = ofColor::pink;
+			break;
+		case 2:
+			color = ofColor::deepPink;
+			break;
+		case 3:
+			color = ofColor::hotPink;
+			break;
+		default:
+			color = ofColor::magenta;
+		}
+
+		ofPushStyle();
+
+		// draw the path
+		ofSetLineWidth(5);
+		ofNoFill();
+		ofSetColor(color, 180);
+		paths_drawing[i]->draw();
+
+		// draw the target
+		ofFill();
+		ofSetColor(ofColor::orange);
+		if (paths_drawing[i]->getVertices().size() > 0)
+			ofDrawEllipse(paths_drawing[i]->getVertices()[0], 30, 30);
+
+		ofPopStyle();
+	}
+}
+
+void MotionController::clear_paths()
+{
+	for (int i = 0; i < paths_drawing.size(); i++) {
+		paths_drawing[i]->clear();
+	}
+}
+
+void MotionController::add_to_path(int i, glm::vec3 pt)
+{
+	if (i < paths_drawing.size()) {
+		auto path = paths_drawing[i];
+
+		// add the first point
+		if (path->getVertices().size() == 0) {
+			path->addVertex(pt);
+		}
+		else {
+			// filter out small moves
+			float dist_thresh = 45;
+			float dist_sq = glm::distance2(path->getVertices().back(), pt);
+			if (dist_sq > dist_thresh * dist_thresh) {
+				path->addVertex(pt);
+			}
+		}
+	}
+}
+
+/**
+ * @brief Checks if the actual 2D positions are close to the target positions.
+ * If close, removes and then updates the new target positions.
+ *
+ * @param ()  actual: Estimated position of the robots
+ */
+void MotionController::update_targets(vector<glm::vec3> actual)
+{
+	for (int i = 0; i < paths_drawing.size(); i++) {
+		auto path = paths_drawing[i];
+		if (path->getVertices().size() > 2) {	// <--- POLYLINE MUST HAVE AT LEAST 3 POINTS, OTHERWISE SENDS TO (0,0,0)
+			float dist_thresh = motion_drawing_accuracy.get();
+			float dist_sq = glm::distance2(path->getVertices()[0], actual[i]);
+			if (dist_sq < dist_thresh * dist_thresh) {
+				path->removeVertex(0);
+				targets[i] = &path->getPointAtPercent(0);
+			}
+		}
+	}
+}
+
 MotionController::MotionPath MotionController::create_polygon(ofNode centroid, float radius, float resolution, float offset_theta)
 {
 	MotionPath mp;
@@ -202,10 +324,27 @@ MotionController::MotionPath MotionController::create_line(ofNode centroid, floa
  * @param ()  path: polyline to rotate
  * @param ()  theta: degrees to rotate
  */
-void MotionController::rotate(ofPolyline* path, float theta)
+void MotionController::rotateCircle(ofPolyline* path, float theta)
 {
 	if (path->getVertices().size() > 0) {
 		glm::vec3 centroid = motion_pos.get();
+		auto axis = glm::vec3(0, 0, 1);
+		path->translate(centroid * -1);
+		path->rotateDeg(theta, axis);
+		path->translate(centroid * 1);
+	}
+}
+
+/**
+ * @brief Rotates a Polyline about its centroid in the YZ Plane.
+ *
+ * @param ()  path: polyline to rotate
+ * @param ()  theta: degrees to rotate
+ */
+void MotionController::rotateLine(ofPolyline* path, float theta)
+{
+	if (path->getVertices().size() > 0) {
+		glm::vec3 centroid = (motion_line.getVertices()[0] + motion_line.getVertices()[1]) / 2;
 		auto axis = glm::vec3(0, 0, 1);
 		path->translate(centroid * -1);
 		path->rotateDeg(theta, axis);
@@ -223,7 +362,7 @@ void MotionController::on_motion_pos_changed(glm::vec3& val)
 		path = &motion_line;
 	}
 
-	glm::vec3 centroid =  path->getCentroid2D();
+	//glm::vec3 centroid = path->getCentroid2D();
 	//for (int i = 0; i < path->getVertices().size(); i++) {
 	//	centroid += path->getVertices()[i];
 	//}
@@ -290,20 +429,41 @@ void MotionController::on_motion_theta_changed(float& val)
 	ofPolyline* path;
 	if (motion_circle_follow) {
 		path = &motion_circle;
+		rotateCircle(path, diff);
 	}
 	else {
 		path = &motion_line;
+		rotateLine(path, diff);
 	}
-	rotate(path, diff);
+	/*rotate(path, diff);*/
 }
 
 void MotionController::on_motion_reset()
 {
-	motion_pos.set(centroid.getGlobalPosition());
-	motion_theta.set(0);
+	motion_pos.set(glm::vec3(0, -2750, 0));
+	centroid.setGlobalPosition(motion_pos);
 	motion_line_length.set(2000);
+
+	// rebuild the line
+	motion_theta.set(0);
+	glm::vec3 start = centroid.getGlobalPosition();
+	glm::vec3 end = centroid.getGlobalPosition();
+	start.x -= motion_line_length.get() / 2;
+	end.x += motion_line_length.get() / 2;
+	motion_line.getVertices()[0] = start;
+	motion_line.getVertices()[1] = end;
+
+	motion_circle_radius.set(1000);
 	motion_spin_enable.set(false);
 	motion_spin_speed.set(0);
+	// rebuild the circle
+	float resolution = 3.0;
+	float theta = 180.0 / resolution;
+	for (int i = 0; i <= resolution; i++) {
+		glm::vec3 pt = glm::rotateZ(glm::vec3(radius, 0, 0), ofDegToRad(theta * i));
+		pt += motion_pos.get();
+		motion_circle.getVertices()[i] = pt;
+	}
 }
 
 /**
@@ -322,10 +482,6 @@ void MotionController::calculate_theta(ofPolyline path)
 	glm::vec3 x_axis = glm::vec3(1, 0, 0);
 
 	float theta = glm::degrees(glm::acos(glm::dot(heading, x_axis)));
-	if (motion_theta > 180) {
-		cout << "theta: " << theta << endl;
-		motion_line_rotation = theta + 180;
-	}
 	motion_line_rotation = theta;
 }
 
@@ -402,7 +558,7 @@ void MotionController::update_motion_circle(float start_angle, float end_angle, 
 		motion_circle.getVertices()[i].x = pt.x;
 		motion_circle.getVertices()[i].y = pt.y;
 	}
-	rotate(&motion_circle, motion_line_rotation);
+	rotateCircle(&motion_circle, motion_line_rotation);
 }
 
 void MotionController::draw_motion_circle()
@@ -486,6 +642,7 @@ void MotionController::setup_gui()
 	params_motion.add(motion_pos.set("Position", centroid.getGlobalPosition(), glm::vec3(-2000, -5250, 0), glm::vec3(2000, 0, 0)));
 	params_motion.add(motion_theta.set("Theta", 0, -180, 180));
 	params_motion.add(motion_spin_enable.set("Enable_Spin", false));
+	params_motion.add(motion_spin_speed.set("Spin_speed", 0, .01, .5));
 	params_motion.add(motion_reset.set("Reset"));
 	motion_pos_prev.x = motion_pos.get().x;
 	motion_pos_prev.y = motion_pos.get().y;
