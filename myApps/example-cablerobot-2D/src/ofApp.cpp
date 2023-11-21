@@ -589,8 +589,8 @@ void ofApp::update_path(ofPolyline* path, glm::vec3 pt)
 		auto pt_3 = path_drawing.getPointAtPercent(1.0);*/
 
 		//cout << "robots->get_target(0): " << robots->get_target(0) << ", pt_0: " << pt_0 << endl;
-		auto mid_pt = robots->get_target(0);
-		float dist_sq = glm::distance2(pt_0, mid_pt);
+		auto mid_pt = robots->get_target(3);
+		float dist_sq = glm::distance2(pt_0, glm::vec3(mid_pt.x, mid_pt.y, 0));
 		if (dist_sq < dist_thresh * dist_thresh) {
 			path->removeVertex(0);
 			pt_0 = path_drawing.getPointAtPercent(0.0);
@@ -602,33 +602,33 @@ void ofApp::update_path(ofPolyline* path, glm::vec3 pt)
 			//pt_3 = robots->get_target(2);// path_drawing.getPointAtPercent(1.0);
 		}
 
-		robots->set_target(0, pt_0.x, pt_0.y);
+		robots->set_target(3, pt_0.x, pt_0.y);
 		// follow the leader
 		if (zone_drawing_follow.get()) {
 			float offset = zone_drawing_follow_offset.get(); //300;
 
 			// send them to the same point
 			if (offset < 50) {
-				robots->set_target(1, pt_0.x, pt_0.y);
 				robots->set_target(2, pt_0.x, pt_0.y);
-				robots->set_target(3, pt_0.x, pt_0.y);
+				robots->set_target(1, pt_0.x, pt_0.y);
+				robots->set_target(0, pt_0.x, pt_0.y);
 			}
 			// follow the leader with the given offset
 			else {
-				auto heading = robots->get_target(0) - pt_0;
+				auto heading = robots->get_target(3) - pt_0;
 				auto p = glm::normalize(heading) * offset;
-				p += robots->get_target(0);
-				robots->set_target(1, p.x, p.y);
-
-				heading = robots->get_target(1) - p;
-				p = glm::normalize(heading) * offset;
-				p += robots->get_target(1);
+				p += robots->get_target(3);
 				robots->set_target(2, p.x, p.y);
 
 				heading = robots->get_target(2) - p;
 				p = glm::normalize(heading) * offset;
 				p += robots->get_target(2);
-				robots->set_target(3, p.x, p.y);
+				robots->set_target(1, p.x, p.y);
+
+				heading = robots->get_target(1) - p;
+				p = glm::normalize(heading) * offset;
+				p += robots->get_target(1);
+				robots->set_target(0, p.x, p.y);
 			}
 		}
 
