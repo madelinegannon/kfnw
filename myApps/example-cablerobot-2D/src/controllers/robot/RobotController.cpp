@@ -365,6 +365,7 @@ void RobotController::setup_gui()
 
 	// Minimize less important parameters
 	panel.getGroup("System_Info").minimize();
+	panel.getGroup("System_Controller").minimize();
 
 	is_gui_setup = true;
 }

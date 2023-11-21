@@ -34,15 +34,15 @@ void ofApp::setup() {
 	robots = new RobotController(positions, &origin);
 	motion = new MotionController(positions, &origin, offset_z);
 
-	agents = new AgentController();
-	agents->setup(num_cable_bots);
-	vector<ofNode*> tgts;
-	for (int i = 0; i < num_cable_bots; i++) {
-		ofNode node;
-		node.setGlobalPosition(0, -2500, 0);
-		tgts.push_back(&node);
-	}
-	agents->set_targets(tgts);
+	//agents = new AgentController();
+	//agents->setup(num_cable_bots);
+	//vector<ofNode*> tgts;
+	//for (int i = 0; i < num_cable_bots; i++) {
+	//	ofNode node;
+	//	node.setGlobalPosition(0, -2500, 0);
+	//	tgts.push_back(&node);
+	//}
+	//agents->set_targets(tgts);
 
 
 	cam.setGlobalPosition(2436.1, -1399.14, 5507.93);
@@ -52,7 +52,7 @@ void ofApp::setup() {
 	ofSetFrameRate(60);
 
 	// Nest the robot panel under the OSC panel
-	robots->panel.setPosition(panel.getPosition().x, panel.getPosition().y + panel.getHeight() + 5);
+	robots->panel.setPosition(panel.getPosition().x, panel.getPosition().y + panel.getHeight() + 250);
 
 	//motion->panel.add(agents->params);
 
@@ -114,23 +114,23 @@ void ofApp::update() {
 		// Testing moving drawing path into motion controller
 		motion->update();
 		if (motion->motion_drawing_follow) {
-			if (robots->get_targets().size() == motion->get_targets().size()) {
-				motion->update_targets(robots->get_actual_positions());
-				//robots->set_targets(motion->get_targets());
-			}
-			else {
-				//ofLogError(__FUNCTION__) << "Robots and MotionTargets do not match! There are " << robots->get_targets().size() << " robots and " << motion->get_targets().size() << " motion targets.";
-			}
+			motion->update_targets(robots->get_actual_positions());
+			//if (robots->get_targets().size() == motion->get_targets().size()) {
+			//	motion->update_targets(robots->get_actual_positions());
+			//	//robots->set_targets(motion->get_targets());
+			//}
+			//else {
+			//	//ofLogError(__FUNCTION__) << "Robots and MotionTargets do not match! There are " << robots->get_targets().size() << " robots and " << motion->get_targets().size() << " motion targets.";
+			//}
 		}
 		robots->set_targets(motion->get_targets());
 		//else if (!motion->motion_drawing_follow) {
 		//	robots->set_targets(motion->get_targets());
 		//}
 
-
-		// disable tha camera if we are interacting with a gizmo
-		// @NOTE 8/18/2023: this is doing it by itself for some reason
-		//disable_camera(robots->disable_camera());
+	// disable tha camera if we are interacting with a gizmo
+	// @NOTE 8/18/2023: this is doing it by itself for some reason
+	//disable_camera(robots->disable_camera());
 	}
 }
 
@@ -736,7 +736,13 @@ void ofApp::check_for_messages()
 			//y = ofMap(y, 0, 1, bounds_y_min, bounds_y_max);
 
 			//cout << "x: " << x << ", y: " << y << endl;
-			update_path(&path_drawing, glm::vec3(x, y, 0));
+			update_path(&path_drawing, glm::vec3(x, y, 0));	// does "follow the leader"
+
+			//motion->add_to_path(0, glm::vec3(x, y, 0));
+			//motion->add_to_path(1, glm::vec3(x, y, 0));
+			//motion->add_to_path(2, glm::vec3(x, y, 0));
+			//motion->add_to_path(3, glm::vec3(x, y, 0));
+
 		}
 		// Add to Robot 0 Path
 		else if (m.getAddress() == "/drawing/0/tgt_norm") {

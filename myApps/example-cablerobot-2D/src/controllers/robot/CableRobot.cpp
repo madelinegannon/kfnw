@@ -860,6 +860,7 @@ void CableRobot::setup_gui()
 	panel.getGroup("Limits").minimize();
 	panel.getGroup("Jogging").minimize();
 	panel.getGroup("Info").minimize();
+	panel.getGroup("Motion").minimize();
 
 	is_setup = true;
 }

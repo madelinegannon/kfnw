@@ -5,6 +5,8 @@
 #include "ofxOsc.h"
 #include "ofxEasing.h"
 
+#include "controllers/agent/AgentController.h"
+
 class MotionController
 {
 private:
@@ -55,6 +57,11 @@ public:
 	void clear_paths();
 	void draw_path(ofPolyline* path);
 
+	//AgentController* agents;
+	//void setup_agents();
+	//void draw_agents();
+	//void update_agents();
+
 
 	ofxPanel panel;
 	ofParameterGroup params;
@@ -75,6 +82,7 @@ public:
 	ofParameter<bool> motion_drawing_follow = false;
 	ofParameter<bool> motion_line_follow = false;
 	ofParameter<bool> motion_circle_follow = false;
+	//ofParameter<bool> motion_agents_follow = false;
 	ofParameter<void> motion_reset;
 	ofParameter<bool> motion_spin_enable = false;
 	ofParameter<float> motion_spin_speed = 0;
@@ -92,9 +100,17 @@ public:
 	ofParameter<float> motion_circle_angle_start = 0;
 	ofParameter<float> motion_circle_angle_end = 180;
 
+	ofParameterGroup params_motion_sine;
+	ofParameter<bool> enable_sine_wave = true;
+	ofParameter<float> sine_wave_speed = 0.01;
+	ofParameter<float> sine_wave_amplitude = 50;
+	ofParameter<float> sine_wave_period = 1;
+	float sine_wave_counter = 0;
+
 	void on_motion_drawing_follow(bool& val);
 	void on_motion_line_follow(bool& val);
 	void on_motion_circle_follow(bool& val);
+	//void on_motion_agents_follow(bool& val);
 	void on_motion_circle_radius(float& val);
 	void on_motion_circle_angle_start(float& val);
 	void on_motion_circle_angle_end(float& val);
@@ -119,8 +135,6 @@ public:
 	void setup_motion_circle();
 	void draw_motion_circle();
 	void update_motion_circle(float start_angle = 0, float end_angle = 180, float resolution = 3);
-
-
 
 
 	void on_play(bool& val);

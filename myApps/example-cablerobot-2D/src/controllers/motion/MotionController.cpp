@@ -20,13 +20,16 @@ MotionController::MotionController()
 	//	targets.push_back(&path.target);
 	//}
 
+
+	// setup default targets
 	for (int i = 0; i < 4; i++) {
-		targets.push_back(new glm::vec3(0,0, (i * offset_z)));
+		targets.push_back(new glm::vec3(0, -2750, (i * offset_z)));
 	}
 
 	setup_motion_line();
 	setup_motion_circle();
 	setup_paths();
+	//setup_agents();
 }
 
 MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, float offset_z)
@@ -55,13 +58,15 @@ MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, flo
 	//	targets.push_back(&path.target);
 	//}
 
+	// setup default targets
 	for (int i = 0; i < 4; i++) {
-		targets.push_back(new glm::vec3(0, 0, (i * offset_z)));
+		targets.push_back(new glm::vec3(0, -2750, (i * offset_z)));
 	}
 
 	setup_motion_line();
 	setup_motion_circle();
 	setup_paths();
+	//setup_agents();
 }
 
 //--------------------------------------------------------------
@@ -77,27 +82,14 @@ void MotionController::setup()
 //--------------------------------------------------------------
 void MotionController::update()
 {
-	//if (play.get()) {
-		//// wrap around once we've hit 100%
-
-		//if (paths[0].path_type == PATH_TYPE::POLYGON) {
-		//	evaluate_percent += speed.get();
-		//	if (evaluate_percent >= 1.0) evaluate_percent = evaluate_percent - 1.0;
-		//}
-		//else if (paths[0].path_type == PATH_TYPE::LINE) {
-		//	float time_diff = ofGetElapsedTimef() - timer_start;
-		//	if (time_diff <= duration.get()) {
-		//		evaluate_percent = ofMap(time_diff, 0, duration.get(), 0, 1, true);
-		//	}
-		//}
 
 	if (motion_line_follow || motion_circle_follow) {
 
 		if (motion_spin_enable) {
-			motion_theta += motion_spin_speed;
+			motion_theta -= motion_spin_speed;
 			//calculate_theta(motion_line);
-			if (motion_theta > 180) {
-				motion_theta = -180;
+			if (motion_theta < -180) {
+				motion_theta = 180;
 				motion_line_rotation = motion_theta;
 			}
 		}
@@ -105,8 +97,15 @@ void MotionController::update()
 		for (int i = 0; i < targets.size(); i++) {
 			float t = (i * 1.0) / (targets.size() - 1);
 			if (motion_line_follow) {
+
 				targets[i]->x = motion_line.getPointAtPercent(t).x;
 				targets[i]->y = motion_line.getPointAtPercent(t).y;
+
+				if (enable_sine_wave) {
+					sine_wave_counter += sine_wave_speed;
+					float val = ofMap(sin(sine_wave_counter + i), -1, 1, -1 * sine_wave_amplitude / 2, sine_wave_amplitude / 2);
+					targets[i]->y += val;
+				}
 			}
 			else if (motion_circle_follow) {
 				//targets[i] = &motion_circle.getPointAtPercent(t);
@@ -115,6 +114,21 @@ void MotionController::update()
 			}
 		}
 	}
+
+	//else if (motion_agents_follow) {
+	//	// update the agent 
+	//	float z_offset = -140;
+	//	for (int i = 0; i < targets.size(); i++) {
+	//		agents->set_target(i, &glm::vec3(motion_pos.get().x, motion_pos.get().y, i * z_offset));
+	//	}
+	//	agents->update();
+	//	// add the agent's pos to the individual drawing path
+	//	auto positions = agents->get_positions();
+	//	for (int i = 0; i < paths_drawing.size(); i++) {
+	//		add_to_path(i, glm::vec3(positions[i].x, positions[i].y, i * z_offset));
+	//	}
+	//}
+
 
 	//for (int i = 0; i < paths.size(); i++) {
 	//	// follow the can-can line
@@ -169,8 +183,15 @@ void MotionController::draw()
 	}
 
 	if (motion_drawing_follow) {
+		//if (motion_agents_follow) {
+		//	agents->draw();
+		//}
 		draw_paths();
 	}
+	//else if (motion_agents_follow) {
+	//	agents->draw();
+	//	draw_paths();
+	//}
 }
 
 void MotionController::draw_gui()
@@ -292,6 +313,23 @@ void MotionController::clear_paths()
 		paths_drawing[i]->clear();
 	}
 }
+
+//void MotionController::setup_agents()
+//{
+//	int num_cable_bots = 4;
+//	agents = new AgentController();
+//	agents->setup(num_cable_bots);
+//	vector<ofNode*> tgts;
+//
+//	for (int i = 0; i < num_cable_bots; i++) {
+//		ofNode node;
+//		node.setGlobalPosition(*get_targets()[i]);
+//		tgts.push_back(&node);
+//	}
+//	agents->set_targets(tgts);
+//
+//	panel.add(agents->params);
+//}
 
 void MotionController::add_to_path(int i, glm::vec3 pt)
 {
@@ -449,6 +487,7 @@ void MotionController::on_motion_line_follow(bool& val)
 	if (val) {
 		motion_drawing_follow = false;
 		motion_circle_follow = false;
+		//motion_agents_follow = false;
 	}
 }
 
@@ -457,8 +496,27 @@ void MotionController::on_motion_circle_follow(bool& val)
 	if (val) {
 		motion_drawing_follow = false;
 		motion_line_follow = false;
+		//motion_agents_follow = false;
 	}
 }
+
+//void MotionController::on_motion_agents_follow(bool& val)
+//{
+//	if (val) {
+//		//motion_drawing_follow = false;
+//		//motion_line_follow = false;
+//
+//		// clear the drawing path lists
+//		clear_paths();
+//
+//		// snap agent location to current positions
+//		agents->set_targets(get_targets());
+//		agents->update();
+//	}
+//	else {
+//		// hide/minimize the gui
+//	}
+//}
 
 void MotionController::on_motion_theta_changed(float& val)
 {
@@ -679,6 +737,7 @@ void MotionController::setup_gui()
 	params_motion.add(motion_drawing_follow.set("Enable_Drawing", false));
 	params_motion.add(motion_line_follow.set("Enable_Line", true));
 	params_motion.add(motion_circle_follow.set("Enable_Circle", false));
+	params_motion.add(enable_sine_wave.set("Enable_Sine_Wave", false));
 	params_motion.add(motion_pos.set("Position", centroid.getGlobalPosition(), glm::vec3(-2000, -5250, 0), glm::vec3(2000, 0, 0)));
 	params_motion.add(motion_theta.set("Theta", 0, -180, 180));
 	params_motion.add(motion_spin_enable.set("Enable_Spin", false));
@@ -700,6 +759,10 @@ void MotionController::setup_gui()
 	params_motion_circle.add(motion_circle_angle_start.set("Start_Angle", 0, 0.0, 360));
 	params_motion_circle.add(motion_circle_angle_end.set("End_Angle", 180, 0.0, 360));
 
+	params_motion_sine.setName("Sine_Wave");
+	params_motion_sine.add(sine_wave_speed.set("Speed", 0.005, 0.001, .02));
+	params_motion_sine.add(sine_wave_amplitude.set("Amplitude", 50, 0, 1000));
+
 	motion_theta.addListener(this, &MotionController::on_motion_theta_changed);
 	motion_pos.addListener(this, &MotionController::on_motion_pos_changed);
 	motion_line_length.addListener(this, &MotionController::on_motion_line_length_changed);
@@ -713,9 +776,12 @@ void MotionController::setup_gui()
 	motion_circle_angle_end.addListener(this, &MotionController::on_motion_circle_angle_end);
 	motion_circle_radius.addListener(this, &MotionController::on_motion_circle_radius);
 
-	params_motion.add(params_motion_drawing);
+	//motion_agents_follow.addListener(this, &MotionController::on_motion_agents_follow);
+
 	params_motion.add(params_motion_line);
 	params_motion.add(params_motion_circle);
+	params_motion.add(params_motion_drawing);
+	params_motion.add(params_motion_sine);
 
 	panel.setup("Motion_Controller");
 	panel.setWidthElements(250);

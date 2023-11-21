@@ -526,6 +526,9 @@ void CableRobot2D::setup_gui()
 	panel.add(params_limits);
 	panel.add(params_kinematics);	
 	panel.add(params_move);
+
+	panel.getGroup("Limits").minimize();
+	panel.getGroup("Kinematics").minimize();
 	
 	robots[0]->panel.setWidthElements(gui_width - 25);
 	robots[0]->panel.setParent(&panel);

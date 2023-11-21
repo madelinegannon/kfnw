@@ -34,8 +34,8 @@ void Agent::update() {
     }
 
     //trail.push_back(ofNode(pose));
-    //if (trail.size() > 200)
-    //    trail.erase(trail.begin());
+    if (trail.size() > 200)
+        trail.erase(trail.begin());
 }
 
 //--------------------------------------------------------------

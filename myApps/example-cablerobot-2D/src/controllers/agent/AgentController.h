@@ -18,10 +18,12 @@ public:
     void set_targets(vector<ofMatrix4x4*> tgts);
     void set_targets(vector<ofNode*> tgts);
     void set_targets(vector<glm::vec3*> tgts);
+    void set_target(int i, glm::vec3* tgt);
 
 
     void remove_trail_pt(int index);
     vector<glm::vec3> get_trail_targets();
+    vector<glm::vec3> get_positions();
 
     ofParameterGroup params;
 

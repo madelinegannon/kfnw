@@ -107,6 +107,15 @@ void AgentController::set_targets(vector<glm::vec3*> tgts)
     }
 }
 
+void AgentController::set_target(int i, glm::vec3* tgt)
+{
+    if (i < NUM_AGENTS) {
+        ofNode node;
+        node.setGlobalPosition(*tgt);
+        targets[i] = node;
+    }
+}
+
 void AgentController::remove_trail_pt(int index)
 { 
 
@@ -129,5 +138,14 @@ vector<glm::vec3> AgentController::get_trail_targets()
         targets.push_back(pos);
     }
     return targets;
+}
+
+vector<glm::vec3> AgentController::get_positions()
+{
+    vector<glm::vec3> positions;
+    for (int i = 0; i < agents.size(); i++) {
+        positions.push_back(agents[i]->pose.getGlobalPosition());
+    }
+    return positions;
 }
 
