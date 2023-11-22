@@ -30,6 +30,7 @@ MotionController::MotionController()
 	setup_motion_circle();
 	setup_paths();
 	//setup_agents();
+	setup_eyes();
 }
 
 MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, float offset_z)
@@ -67,6 +68,7 @@ MotionController::MotionController(vector<glm::vec3> bases, ofNode* _origin, flo
 	setup_motion_circle();
 	setup_paths();
 	//setup_agents();
+	setup_eyes();
 }
 
 //--------------------------------------------------------------
@@ -119,6 +121,10 @@ void MotionController::update()
 				targets[i]->y = motion_circle.getPointAtPercent(t).y;
 			}
 		}
+	}
+
+	if (enable_eyes) {
+		update_eyes();
 	}
 
 	//else if (motion_agents_follow) {
@@ -198,6 +204,9 @@ void MotionController::draw()
 	//	agents->draw();
 	//	draw_paths();
 	//}
+	if (enable_eyes) {
+		draw_eyes();
+	}
 }
 
 void MotionController::draw_gui()
@@ -457,6 +466,9 @@ void MotionController::on_motion_pos_changed(glm::vec3& val)
 	motion_pos_prev.y = val.y;
 	path->translate(diff);
 
+	// update the eyeball
+	center.setGlobalPosition(motion_line.getVertices()[0]);
+
 	//glm::vec3 centroid;
 	//for (int i = 0; i < motion_line.getVertices().size(); i++) {
 	//	centroid += motion_line.getVertices()[i];
@@ -489,6 +501,71 @@ void MotionController::on_enable_pendulum(bool& val)
 		motion_circle_angle_start = 0;
 		motion_circle_angle_end = 0;
 	}
+}
+
+void MotionController::on_eye_spacing(float& val)
+{
+	left_eye.setPosition(-1 * val / 2, 0, 0);
+	right_eye.setPosition(1 * val / 2, 0, 0);
+}
+
+void MotionController::setup_eyes()
+{
+	int spacing = 250;
+
+	center.setGlobalPosition(motion_pos);
+
+	left_eye.setParent(center);
+	left_eye.setPosition(-1 * spacing, 0, 0);
+
+	left_pupil.setParent(left_eye);
+
+	right_eye.setParent(center);
+	right_eye.setPosition(1 * spacing, 0, 0);
+
+	right_pupil.setParent(right_eye);
+
+	rigging_eyes.push_back(&center);
+	rigging_eyes.push_back(&left_eye);
+	rigging_eyes.push_back(&left_pupil);
+	rigging_eyes.push_back(&right_eye);
+	rigging_eyes.push_back(&right_pupil);
+}
+
+void MotionController::update_eyes()
+{
+	int z_offset = -140;
+	// get the eyes to look at the line end_pt
+	auto left = glm::normalize(motion_line.getVertices()[1] - left_eye.getGlobalPosition());
+	left *= (eye_radius - pupil_radius);
+	left_pupil.setPosition(left);
+
+	auto right = glm::normalize(motion_line.getVertices()[1] - right_eye.getGlobalPosition());
+	right *= (eye_radius - pupil_radius);
+	right_pupil.setPosition(right);
+
+	targets[0] = new glm::vec3(left_eye.getGlobalPosition().x, left_eye.getGlobalPosition().y, 0 * z_offset);
+	targets[1] = new glm::vec3(left_pupil.getGlobalPosition().x, left_pupil.getGlobalPosition().y, 1 * z_offset);
+	targets[2] = new glm::vec3(right_eye.getGlobalPosition().x, right_eye.getGlobalPosition().y, 2 * z_offset);
+	targets[3] = new glm::vec3(right_pupil.getGlobalPosition().x, right_pupil.getGlobalPosition().y, 3 * z_offset);
+}
+
+void MotionController::draw_eyes() {
+	ofPushStyle();
+	rigging_eyes[0]->draw();	// draw the center points
+
+	float diameter_eye = 250 * 2.0;
+	float diameter_pupil = 125 * 2.0;
+
+	ofFill();
+	ofSetColor(ofColor::white);
+	ofEllipse(rigging_eyes[1]->getGlobalPosition(), diameter_eye, diameter_eye);	// right eye
+	ofEllipse(rigging_eyes[3]->getGlobalPosition(), diameter_eye, diameter_eye);	// left eye
+	ofSetColor(ofColor::black);
+	ofEllipse(rigging_eyes[2]->getGlobalPosition(), diameter_pupil, diameter_pupil);	// right pupil
+	ofEllipse(rigging_eyes[4]->getGlobalPosition(), diameter_pupil, diameter_pupil);	// left pupil
+
+	ofPopStyle();
 }
 
 void MotionController::on_motion_drawing_follow(bool& val)
@@ -756,6 +833,7 @@ void MotionController::setup_gui()
 	params_motion.add(motion_circle_follow.set("Enable_Circle", false));
 	params_motion.add(enable_sine_wave.set("Enable_Sine_Wave", false));
 	params_motion.add(enable_pendulum.set("Enable_Pendulum", false));
+	params_motion.add(enable_eyes.set("Enable_Eyes", false));
 	params_motion.add(motion_pos.set("Position", centroid.getGlobalPosition(), glm::vec3(-2000, -5250, 0), glm::vec3(2000, 0, 0)));
 	params_motion.add(motion_theta.set("Theta", 0, -180, 180));
 	params_motion.add(motion_spin_enable.set("Enable_Spin", false));
@@ -786,6 +864,11 @@ void MotionController::setup_gui()
 	params_motion_pendulum.add(pendulum_speed.set("Speed", 0.001, 0.0001, .01));
 	params_motion_pendulum.add(pendulum_offset.set("Offset", 0, 0, 1));
 
+	params_eyes.setName("Eyes");
+	params_eyes.add(eye_spacing.set("Eye_Spacing", 250, 0, 1000));
+	params_eyes.add(eye_radius.set("Eye_Radius", 250, 0, 300));
+	//params_eyes.add(pupil_radius.set("Pupil_Radius", 125, 0, 500));
+
 	motion_theta.addListener(this, &MotionController::on_motion_theta_changed);
 	motion_pos.addListener(this, &MotionController::on_motion_pos_changed);
 	motion_line_length.addListener(this, &MotionController::on_motion_line_length_changed);
@@ -801,6 +884,8 @@ void MotionController::setup_gui()
 
 	enable_pendulum.addListener(this, &MotionController::on_enable_pendulum);
 
+	eye_spacing.addListener(this, &MotionController::on_eye_spacing);
+
 	//motion_agents_follow.addListener(this, &MotionController::on_motion_agents_follow);
 
 	params_motion.add(params_motion_line);
@@ -808,6 +893,7 @@ void MotionController::setup_gui()
 	params_motion.add(params_motion_drawing);
 	params_motion.add(params_motion_sine);
 	params_motion.add(params_motion_pendulum);
+	params_motion.add(params_eyes);
 
 	panel.setup("Motion_Controller");
 	panel.setWidthElements(250);

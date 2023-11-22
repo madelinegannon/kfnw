@@ -985,6 +985,17 @@ void ofApp::check_for_messages()
 			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->pendulum_offset.getMin(), motion->pendulum_offset.getMax());
 			motion->pendulum_offset.set(val);
 		}
+		else if (m.getAddress() == "/eyes/enable") {
+			motion->enable_eyes.set(m.getArgAsBool(0));
+		}
+		else if (m.getAddress() == "/eyes/spacing") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->eye_spacing.getMin(), motion->eye_spacing.getMax());
+			motion->eye_spacing.set(val);
+		}
+		else if (m.getAddress() == "/eyes/radius") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->eye_radius.getMin(), motion->eye_radius.getMax());
+			motion->eye_radius.set(val);
+		}
 
 		// We received an absolute XY target in range {[0,0], [bounds.min,bounds.max]}
 		//else if (m.getAddress() == "/tgt_abs") {

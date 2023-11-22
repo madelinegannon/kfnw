@@ -115,6 +115,23 @@ public:
 	ofParameter<float> pendulum_offset = 0.01;
 	float pendulum_counter = 0;
 
+	void on_enable_eyes(bool& val);
+	void on_eye_spacing(float& val);
+	ofParameterGroup params_eyes;
+	ofParameter<bool> enable_eyes = false;
+	ofParameter<float> eye_spacing = 250;
+	ofParameter<float> eye_radius = 250;
+	ofParameter<float> pupil_radius = 125;
+	void setup_eyes();
+	void update_eyes();
+	void draw_eyes();
+	vector<ofNode*> rigging_eyes;
+	ofNode center = ofNode();
+	ofNode left_eye = ofNode();
+	ofNode left_pupil = ofNode();
+	ofNode right_eye = ofNode();
+	ofNode right_pupil = ofNode();
+
 	void on_motion_drawing_follow(bool& val);
 	void on_motion_line_follow(bool& val);
 	void on_motion_circle_follow(bool& val);
