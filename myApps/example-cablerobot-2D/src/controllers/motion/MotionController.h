@@ -5,6 +5,7 @@
 #include "ofxOsc.h"
 #include "ofxEasing.h"
 
+
 #include "controllers/agent/AgentController.h"
 
 class MotionController
@@ -104,8 +105,15 @@ public:
 	ofParameter<bool> enable_sine_wave = true;
 	ofParameter<float> sine_wave_speed = 0.01;
 	ofParameter<float> sine_wave_amplitude = 50;
-	ofParameter<float> sine_wave_period = 1;
+	ofParameter<float> sine_wave_offset = 0.01;
 	float sine_wave_counter = 0;
+
+	void on_enable_pendulum(bool& val);
+	ofParameterGroup params_motion_pendulum;
+	ofParameter<bool> enable_pendulum = true;
+	ofParameter<float> pendulum_speed = 0.001;
+	ofParameter<float> pendulum_offset = 0.01;
+	float pendulum_counter = 0;
 
 	void on_motion_drawing_follow(bool& val);
 	void on_motion_line_follow(bool& val);

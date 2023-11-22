@@ -963,6 +963,28 @@ void ofApp::check_for_messages()
 			theta = 90 - val / 2.0;
 			motion->motion_circle_angle_start.set(theta);
 		}
+		else if (m.getAddress() == "/enable_sine") {
+			motion->enable_sine_wave.set(m.getArgAsBool(0));
+		}
+		else if (m.getAddress() == "/sine_speed") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->sine_wave_speed.getMin(), motion->sine_wave_speed.getMax());
+			motion->sine_wave_speed.set(val);
+		}
+		else if (m.getAddress() == "/sine_amp") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->sine_wave_amplitude.getMin(), motion->sine_wave_amplitude.getMax());
+			motion->sine_wave_amplitude.set(val);
+		}
+		else if (m.getAddress() == "/enable_pendulum") {
+			motion->enable_pendulum.set(m.getArgAsBool(0));
+		}
+		else if (m.getAddress() == "/pendulum_speed") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->pendulum_speed.getMin(), motion->pendulum_speed.getMax());
+			motion->pendulum_speed.set(val);
+		}
+		else if (m.getAddress() == "/pendulum_offset") {
+			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->pendulum_offset.getMin(), motion->pendulum_offset.getMax());
+			motion->pendulum_offset.set(val);
+		}
 
 		// We received an absolute XY target in range {[0,0], [bounds.min,bounds.max]}
 		//else if (m.getAddress() == "/tgt_abs") {

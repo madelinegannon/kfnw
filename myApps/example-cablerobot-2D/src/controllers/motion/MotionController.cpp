@@ -103,12 +103,18 @@ void MotionController::update()
 
 				if (enable_sine_wave) {
 					sine_wave_counter += sine_wave_speed;
-					float val = ofMap(sin(sine_wave_counter + i), -1, 1, -1 * sine_wave_amplitude / 2, sine_wave_amplitude / 2);
+					float val = ofMap(sin(sine_wave_counter), -1, 1, -1 * sine_wave_amplitude / 2, sine_wave_amplitude / 2);
 					targets[i]->y += val;
 				}
 			}
 			else if (motion_circle_follow) {
-				//targets[i] = &motion_circle.getPointAtPercent(t);
+
+				if (enable_pendulum) {
+					pendulum_counter += pendulum_speed;
+					float val = ofMap(sin(pendulum_counter + (i * pendulum_offset)), -1.1, 1.1, -160, -20);
+					motion_theta.set(val);
+				}
+
 				targets[i]->x = motion_circle.getPointAtPercent(t).x;
 				targets[i]->y = motion_circle.getPointAtPercent(t).y;
 			}
@@ -474,6 +480,17 @@ void MotionController::on_motion_line_length_changed(float& val)
 	motion_line.getVertices()[1] = centroid - glm::normalize(heading) * (val / 2);
 }
 
+void MotionController::on_enable_pendulum(bool& val)
+{
+	if (val) {
+		enable_sine_wave = false;
+		motion_circle_follow = true;
+		pendulum_counter = 0;
+		motion_circle_angle_start = 0;
+		motion_circle_angle_end = 0;
+	}
+}
+
 void MotionController::on_motion_drawing_follow(bool& val)
 {
 	if (val) {
@@ -738,6 +755,7 @@ void MotionController::setup_gui()
 	params_motion.add(motion_line_follow.set("Enable_Line", true));
 	params_motion.add(motion_circle_follow.set("Enable_Circle", false));
 	params_motion.add(enable_sine_wave.set("Enable_Sine_Wave", false));
+	params_motion.add(enable_pendulum.set("Enable_Pendulum", false));
 	params_motion.add(motion_pos.set("Position", centroid.getGlobalPosition(), glm::vec3(-2000, -5250, 0), glm::vec3(2000, 0, 0)));
 	params_motion.add(motion_theta.set("Theta", 0, -180, 180));
 	params_motion.add(motion_spin_enable.set("Enable_Spin", false));
@@ -762,6 +780,11 @@ void MotionController::setup_gui()
 	params_motion_sine.setName("Sine_Wave");
 	params_motion_sine.add(sine_wave_speed.set("Speed", 0.005, 0.001, .02));
 	params_motion_sine.add(sine_wave_amplitude.set("Amplitude", 50, 0, 1000));
+	params_motion_sine.add(sine_wave_offset.set("Offset", 0, 0, 1));
+
+	params_motion_pendulum.setName("Pendulum");
+	params_motion_pendulum.add(pendulum_speed.set("Speed", 0.001, 0.0001, .01));
+	params_motion_pendulum.add(pendulum_offset.set("Offset", 0, 0, 1));
 
 	motion_theta.addListener(this, &MotionController::on_motion_theta_changed);
 	motion_pos.addListener(this, &MotionController::on_motion_pos_changed);
@@ -776,12 +799,15 @@ void MotionController::setup_gui()
 	motion_circle_angle_end.addListener(this, &MotionController::on_motion_circle_angle_end);
 	motion_circle_radius.addListener(this, &MotionController::on_motion_circle_radius);
 
+	enable_pendulum.addListener(this, &MotionController::on_enable_pendulum);
+
 	//motion_agents_follow.addListener(this, &MotionController::on_motion_agents_follow);
 
 	params_motion.add(params_motion_line);
 	params_motion.add(params_motion_circle);
 	params_motion.add(params_motion_drawing);
 	params_motion.add(params_motion_sine);
+	params_motion.add(params_motion_pendulum);
 
 	panel.setup("Motion_Controller");
 	panel.setWidthElements(250);
