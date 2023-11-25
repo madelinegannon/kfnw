@@ -105,7 +105,7 @@ void MotionController::update()
 
 				if (enable_sine_wave) {
 					sine_wave_counter += sine_wave_speed;
-					float val = ofMap(sin(sine_wave_counter), -1, 1, -1 * sine_wave_amplitude / 2, sine_wave_amplitude / 2);
+					float val = ofMap(sin(sine_wave_counter + i), -1, 1, -1 * sine_wave_amplitude / 2, sine_wave_amplitude / 2);
 					targets[i]->y += val;
 				}
 			}
@@ -351,18 +351,27 @@ void MotionController::add_to_path(int i, glm::vec3 pt)
 	if (i < paths_drawing.size()) {
 		auto path = paths_drawing[i];
 
-		// add the first point
-		if (path->getVertices().size() == 0) {
-			path->addVertex(pt);
-		}
-		else {
+		//// add the first point
+		//if (path->getVertices().size() == 0) {
+		//	path->addVertex(pt);
+		//}
+		//else {
+
+			glm::vec3 p;
+			if (path->getVertices().size() == 0) {
+				p = *targets[i];	// use the current target for distance thresholding
+			}
+			else {
+				p = path->getVertices().back();
+			}
 			// filter out small moves
 			float dist_thresh = 45;
-			float dist_sq = glm::distance2(path->getVertices().back(), pt);
+			//float dist_sq = glm::distance2(path->getVertices().back(), pt);
+			float dist_sq = glm::distance2(p, pt);
 			if (dist_sq > dist_thresh * dist_thresh) {
 				path->addVertex(pt);
 			}
-		}
+		//}
 	}
 }
 
@@ -634,28 +643,35 @@ void MotionController::on_motion_reset()
 {
 	motion_pos.set(glm::vec3(0, -2750, 0));
 	centroid.setGlobalPosition(motion_pos);
-	motion_line_length.set(2000);
 
-	// rebuild the line
-	motion_theta.set(0);
-	glm::vec3 start = centroid.getGlobalPosition();
-	glm::vec3 end = centroid.getGlobalPosition();
-	start.x -= motion_line_length.get() / 2;
-	end.x += motion_line_length.get() / 2;
-	motion_line.getVertices()[0] = start;
-	motion_line.getVertices()[1] = end;
-
-	motion_circle_radius.set(1000);
-	motion_spin_enable.set(false);
-	motion_spin_speed.set(0);
-	// rebuild the circle
-	float resolution = 3.0;
-	float theta = 180.0 / resolution;
-	for (int i = 0; i <= resolution; i++) {
-		glm::vec3 pt = glm::rotateZ(glm::vec3(radius, 0, 0), ofDegToRad(theta * i));
-		pt += motion_pos.get();
-		motion_circle.getVertices()[i] = pt;
+	if (motion_line_follow) {
+		motion_line_length.set(2000);
+		// rebuild the line
+		glm::vec3 start = centroid.getGlobalPosition();
+		glm::vec3 end = centroid.getGlobalPosition();
+		start.x -= motion_line_length.get() / 2;
+		end.x += motion_line_length.get() / 2;
+		motion_line.getVertices()[0] = start;
+		motion_line.getVertices()[1] = end;
+		motion_theta.set(0);
 	}
+
+	if (motion_circle_follow) {
+		motion_circle_radius.set(1000);
+		motion_spin_enable.set(false);
+		motion_spin_speed.set(0);
+		// rebuild the circle
+		float resolution = 3.0;
+		float theta = 180.0 / resolution;
+		for (int i = 0; i <= resolution; i++) {
+			glm::vec3 pt = glm::rotateZ(glm::vec3(radius, 0, 0), ofDegToRad(theta * i));
+			pt += motion_pos.get();
+			motion_circle.getVertices()[i] = pt;
+		}
+		update_motion_circle(motion_circle_angle_start.get(), motion_circle_angle_end.get());
+		motion_theta.set(-180);
+	}
+
 }
 
 /**
@@ -739,6 +755,8 @@ void MotionController::setup_motion_circle()
 		pt += motion_pos.get();
 		motion_circle.addVertex(pt);
 	}
+	update_motion_circle(motion_circle_angle_start.get(), motion_circle_angle_end.get());
+	motion_theta.set(-180);
 }
 
 void MotionController::update_motion_circle(float start_angle, float end_angle, float resolution)

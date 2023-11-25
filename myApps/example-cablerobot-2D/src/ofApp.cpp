@@ -931,7 +931,7 @@ void ofApp::check_for_messages()
 			motion->motion_circle_radius.set(val);
 		}
 		else if (m.getAddress() == "/circle/theta") {
-			float val = ofMap(m.getArgAsFloat(0), 0, 1, motion->motion_theta.getMin(), motion->motion_theta.getMax());
+			float val = ofMap(m.getArgAsFloat(0), -1, 1, motion->motion_theta.getMin(), motion->motion_theta.getMax());
 			motion->motion_theta.set(val);
 		}
 		else if (m.getAddress() == "/circle/position") {
