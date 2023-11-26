@@ -49,7 +49,7 @@ float b_lerp = 80.0;
 int b_raw = 80;
 int b_pulse = 80;
 
-float lerp_increment = 0.5;
+float lerp_increment = 0.500;
 float brightness = 1.0;
 
 bool enable = true;
@@ -237,7 +237,10 @@ void on_message_received(OSCMessage& msg) {
   } else if (addr == "/pulse_speed") {
     pulse_speed = msg.getFloat(0);
   } else if (addr == "/lerp_increment"){
-    lerp_increment = msg.getFloat(0);
+    // sending a 1-100 range becuase of weird bug with small float values
+    float val = msg.getFloat(0);  
+    // remap to .01 - 1.0 range
+    lerp_increment = val / 100.0;
   }
   else {
     Serial.print("Unknown Msg Format:\n\t");

@@ -212,7 +212,7 @@ void on_message_received(OSCMessage& msg) {
     if (data == "0") {
       enable_pulse = false;
       // reset the sine wave start at 0
-      curr_pulse_val = -1 - pulse_speed;  
+      curr_pulse_val = -1 - pulse_speed;
     } else {
       enable_pulse = true;
     }
@@ -236,10 +236,12 @@ void on_message_received(OSCMessage& msg) {
     }
   } else if (addr == "/pulse_speed") {
     pulse_speed = msg.getFloat(0);
-  } else if (addr == "/lerp_increment"){
-    lerp_increment = msg.getFloat(0);
-  }
-  else {
+  } else if (addr == "/lerp_increment") {
+    // sending a 1-100 range becuase of weird bug with small float values
+    float val = msg.getFloat(0);
+    // remap to .01 - 1.0 range
+    lerp_increment = val / 100.0;
+  } else {
     Serial.print("Unknown Msg Format:\n\t");
     Serial.println(addr);
   }
