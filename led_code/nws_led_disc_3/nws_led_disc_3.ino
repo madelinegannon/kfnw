@@ -236,7 +236,10 @@ void on_message_received(OSCMessage& msg) {
     }
   } else if (addr == "/pulse_speed") {
     pulse_speed = msg.getFloat(0);
-  } else {
+  } else if (addr == "/lerp_increment"){
+    lerp_increment = msg.getFloat(0);
+  }
+  else {
     Serial.print("Unknown Msg Format:\n\t");
     Serial.println(addr);
   }
