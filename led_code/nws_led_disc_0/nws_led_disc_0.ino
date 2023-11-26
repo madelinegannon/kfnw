@@ -35,14 +35,27 @@ Adafruit_NeoPixel pixels(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 // global color value
 uint32_t color = pixels.Color(255, 0, 80);
 int r = 255;
+float r_lerp = 255.0;
+int r_raw = 255;
+int r_pulse = 255;
+
 int g = 0;
+float g_lerp = 0.0;
+int g_raw = 0;
+int g_pulse = 0;
+
 int b = 80;
+float b_lerp = 80.0;
+int b_raw = 80;
+int b_pulse = 80;
+
+float lerp_increment = 0.5;
 float brightness = 1.0;
 
 bool enable = true;
 bool enable_pulse = false;
 float curr_pulse_val = 0;
-float duration = 0.001;
+float pulse_speed = 0.001;
 
 
 WiFiUDP udp;
@@ -62,7 +75,7 @@ const char* password = "benderisgreat";
 IPAddress static_IP(192, 168, 1, 10);  // Disc 0
 // IPAddress static_IP(192, 168, 1, 11); // Disc 1
 // IPAddress static_IP(192, 168, 1, 12); // Disc 2
-// IPAddress static_IP(192, 168, 1, 13); // Disc 3
+// IPAddress static_IP(192, 168, 1, 13);  // Disc 3
 IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 #endif
@@ -99,35 +112,60 @@ void setup() {
 
 void loop() {
   check_for_OSC_message();
-  
-  
+
+
   // if (enable) {
-    if (enable && enable_pulse) {
-      curr_pulse_val = curr_pulse_val + duration;
+  if (enable) {
+
+    if (do_update_color) {
+      // transition (instead of jumping) to change of color
+      lerp_to_color();
+
+      //if (!enable_pulse) { // <--update twice to smooth out the pulsing
+      pixels.fill(color);
+      pixels.show();
+      //}
+    }
+
+    if (enable_pulse) {
+      curr_pulse_val = curr_pulse_val + pulse_speed;
 
       float val = sin(curr_pulse_val);
       val = (val + 1.0) * 128;
-
-      color = pixels.Color(map(r, 0, 255, 0, int(val)), map(g, 0, 255, 0, int(val)), map(b, 0, 255, 0, int(val)));
+      // r_pulse = map(r_lerp, 0, 255, 0, int(val));
+      // g_pulse = map(g_lerp, 0, 255, 0, int(val));
+      // b_pulse = map(b_lerp, 0, 255, 0, int(val));
+      // color = pixels.Color(r_pulse, g_pulse, b_pulse);
+      color = pixels.Color(map(r_lerp, 0, 255, 0, int(val)), map(g_lerp, 0, 255, 0, int(val)), map(b_lerp, 0, 255, 0, int(val)));
       pixels.fill(color);
       pixels.show();
+    }
+  }
+}
 
-    } 
-    // else {
-  //     uint32_t color = pixels.Color(r, g, b);
-  //     pixels.fill(color);
-  //     pixels.show();
-  //   }
-  // } else if (color != pixels.Color(0, 0, 0)) {
-  //     Serial.println("TURN OFF");
-  //     color = pixels.Color(0, 0, 0);
-  //     pixels.fill(color);
-  //     pixels.show();
-  //   }
-  //   uint32_t color = pixels.Color(0, 0, 0);
-  //   // pixels.fill(color);
-  //   // pixels.show();
-  // }
+bool do_update_color() {
+  return (r_lerp != r && g_lerp != g && b_lerp != b);
+}
+
+void lerp_to_color() {
+  if (r_lerp < r) {
+    r_lerp += lerp_increment;
+  } else if (r_lerp > r) {
+    r_lerp -= lerp_increment;
+  }
+
+  if (g_lerp < g) {
+    g_lerp += lerp_increment;
+  } else if (g_lerp > g) {
+    g_lerp -= lerp_increment;
+  }
+
+  if (b_lerp < b) {
+    b_lerp += lerp_increment;
+  } else if (b_lerp > b) {
+    b_lerp -= lerp_increment;
+  }
+  color = pixels.Color(r_lerp, g_lerp, b_lerp);
 }
 
 
@@ -143,106 +181,65 @@ void on_message_received(OSCMessage& msg) {
   bool update_color = false;
 
   if (addr == "/enable") {
-
-    // sending a string "0" or "1" because there's a weird 
+    // sending a string "0" or "1" because there's a weird
     // bug with sending bools or ints (only 1 is received)
-    char val [8];
+    char val[8];
     msg.getString(0, val);
     String data = (char*)val;
     // Serial.println(data);
-    if (data == "0"){
+    if (data == "0") {
       enable = false;
-    }
-    else{
+    } else {
       enable = true;
     }
     // Serial.print("Enable set to ");
     // Serial.println(enable);
-    if (!enable){
+    if (!enable) {
       color = pixels.Color(0, 0, 0);
       curr_pulse_val = 0;
       // reset pulse sine wave parameters
-    }
-    else{
+    } else {
       color = pixels.Color(r, g, b);
     }
-    update_color = true;
-  } 
-  else if (addr == "/enable_pulse") {
-    // sending a string "0" or "1" because there's a weird 
+    pixels.fill(color);
+    pixels.show();
+  } else if (addr == "/enable_pulse") {
+    // sending a string "0" or "1" because there's a weird
     // bug with sending bools or ints (only 1 is received)
-    char val [8];
+    char val[8];
     msg.getString(0, val);
     String data = (char*)val;
-    //Serial.println(data);
-    if (data == "0"){
+    if (data == "0") {
       enable_pulse = false;
-      curr_pulse_val = 0;
-    }
-    else{
+      // reset the sine wave start at 0
+      curr_pulse_val = -1 - pulse_speed;  
+    } else {
       enable_pulse = true;
     }
     // Serial.print("Enable Pulse set to ");
     // Serial.println(enable_pulse);
-  } 
-  else if (addr == "/color_r") {
+  } else if (addr == "/color_r") {
     r = msg.getInt(0);
-    if (!enable_pulse){   // enable pulse updates the color in loop()
-      update_color = true;
-      color = pixels.Color(r, g, b);
-    }
-    //Serial.println(r);
+    r_raw = msg.getInt(0);
   } else if (addr == "/color_g") {
     g = msg.getInt(0);
-    if (!enable_pulse){
-      update_color = true;
-      color = pixels.Color(r, g, b);
-    }
-    //Serial.println(g);
+    g_raw = msg.getInt(0);
   } else if (addr == "/color_b") {
     b = msg.getInt(0);
-    if (!enable_pulse){
-      update_color = true;
-      color = pixels.Color(r, g, b);
-    }
-    //Serial.println(b);
+    b_raw = msg.getInt(0);
   } else if (addr == "/color_brightness") {
-      if (!enable_pulse){
-        brightness = msg.getFloat(0);
-        int _r = int(r * 1.0 * brightness);
-        int _g = int(g * 1.0 * brightness);
-        int _b = int(b * 1.0 * brightness);
-      // Serial.print("brightness: ");
-      // Serial.print(brightness);
-      // Serial.print("\tr: ");
-      // Serial.print(_r);
-      // Serial.print(" g: ");
-      // Serial.print(_g);
-      // Serial.print(" b: ");
-      // Serial.println(_b);
-        update_color = true;        
-        color = pixels.Color(_r, _g, _b);
+    if (!enable_pulse) {
+      brightness = msg.getFloat(0);
+      r = int(r_raw * 1.0 * brightness);
+      g = int(g_raw * 1.0 * brightness);
+      b = int(b_raw * 1.0 * brightness);
     }
-  }
-
-  else if (addr == "/duration") {
-      duration = msg.getFloat(0);
-    //Serial.println(duration);
-  }
-
-  
-  else{
+  } else if (addr == "/pulse_speed") {
+    pulse_speed = msg.getFloat(0);
+  } else {
     Serial.print("Unknown Msg Format:\n\t");
     Serial.println(addr);
   }
-
-  if (update_color){
-    //color = pixels.Color(r, g, b);
-    pixels.fill(color);
-    pixels.show();
-    update_color = false;
-  }
-
 }
 
 void check_for_OSC_message() {
@@ -258,8 +255,6 @@ void check_for_OSC_message() {
       msg.getAddress(msg_addr);
       // Serial.print("MSG_ADDR: ");
       // Serial.println(msg_addr);
-
-      // if (!msg.isBundle()) {
       msg.dispatch(msg_addr, on_message_received);
     }
   }
